@@ -71,13 +71,11 @@ namespace goldenrockefeller{ namespace afft{
             return SampleSpec::Sin(x);
         }
 
-        template<typename T>
-        static inline void Load(T t, Operand& x) {
+        static inline void Load(const Sample* t, Operand& x) {
             OperandSpec::Load(t, x);
         }
 
-        template<typename T>
-        static inline void Store(T t, const Operand& x) {
+        static inline void Store(Sample* t, const Operand& x) {
             OperandSpec::Store(t, x);
         }
 
@@ -107,21 +105,18 @@ namespace goldenrockefeller{ namespace afft{
         );
         public:
         
-        std::size_t n_radix_2_butterflies;
-        std::size_t n_radix_4_butterflies;
-        bool using_final_radix_2_butterfly;
+            std::size_t n_radix_2_butterflies;
+            std::size_t n_radix_4_butterflies;
+            bool using_final_radix_2_butterfly;
 
-        std::vector<std::vector<std::vector<Sample>>> twiddles_real;
-        std::vector<std::vector<std::vector<Sample>>> twiddles_imag;
+            std::vector<std::vector<std::vector<Sample>>> twiddles_real;
+            std::vector<std::vector<std::vector<Sample>>> twiddles_imag;
 
-        std::vector<std::size_t> scrambled_indexes;
-        std::vector<std::size_t> scrambled_indexes_dft;
+            std::vector<std::size_t> scrambled_indexes;
+            std::vector<std::size_t> scrambled_indexes_dft;
 
-        std::vector<std::vector<Sample>> dft_real;
-        std::vector<std::vector<Sample>> dft_imag;
-
-        std::vector<Sample> work_real;
-        std::vector<Sample> work_imag;
+            std::vector<std::vector<Sample>> dft_real;
+            std::vector<std::vector<Sample>> dft_imag;
         
             FftComplex():
                 n_radix_2_butterflies(
@@ -165,7 +160,7 @@ namespace goldenrockefeller{ namespace afft{
                 Sample* transform_imag,
                 Sample* signal_real, 
                 Sample* signal_imag,
-            ) {
+            ) const {
                 constexpr bool k_DFT_IS_FINAL_PHASE 
                     = k_TRANSFORM_LEN == k_N_SAMPLES_PER_OPERAND;
 
@@ -175,45 +170,14 @@ namespace goldenrockefeller{ namespace afft{
 
                 Sample scale_factor = Sample(1.);
 
-                if (k_CALCULATING_INVERSE) {
+                if (k_CALCULATING_INVERSE) {    
+                    std::swap(transform_real, transform_imag);
                     scale_factor = 1. / Sample(k_TRANSFORM_LEN);
                 }
-
-                Sample* store_a_real;
-                Sample* store_a_imag;
-                Sample* store_b_real;
-                Sample* store_b_imag;
-
-                if (k_DFT_IS_FINAL_PHASE) {
-                    store_a_real = work_real;
-                    store_a_imag = work_imag;
-
-                    if (k_CALCULATING_INVERSE) {    
-                        store_b_real = transform_imag;
-                        store_b_imag = transform_real;
-                    }
-                    else {
-                        store_b_real = transform_real;
-                        store_b_imag = transform_imag;
-                    }
-                }
-                else { // Radix 4 is final phase
-                    store_b_real = work_real;
-                    store_b_imag = work_imag;
-
-                    if (k_CALCULATING_INVERSE) {    
-                        store_a_real = transform_imag;
-                        store_a_imag = transform_real;
-                    }
-                    else {
-                        store_a_real = transform_real;
-                        store_a_imag = transform_imag;
-                    }
-                }
-
+                
                 ScrambleSignal(
-                    store_a_real, 
-                    store_a_imag,
+                    transform_real, 
+                    transform_imag,
                     signal_real, 
                     signal_imag,
                     scale_factor
@@ -233,10 +197,10 @@ namespace goldenrockefeller{ namespace afft{
                 ) {
                     auto old_index = scrambled_indexes[new_index];
 
-                    store_a_real[new_index] 
+                    transform_real[new_index] 
                         = scale_factor * signal_real[old_index];
 
-                    store_a_imag[new_index] 
+                    transform_imag[new_index] 
                         = scale_factor * signal_imag[old_index];
                 }
 
@@ -244,27 +208,14 @@ namespace goldenrockefeller{ namespace afft{
                 // DFT PHASE
                 //--------------------------------------------------------------
 
-                std::memset(
-                    reinterpret_cast<void *>(store_b_real),
-                    0,
-                    k_TRANSFORM_LEN * sizeof(Sample);
-                );
-
-                std::memset(
-                    reinterpret_cast<void *>(store_b_imag),
-                    0,
-                    k_TRANSFORM_LEN * sizeof(Sample);
-                );
-
-                if (k_N_SAMPLES_PER_OPERAND != 1) {
+                if (k_N_SAMPLES_PER_OPERAND > 1) {
                     subfft_len *= k_N_SAMPLES_PER_OPERAND
                     n_subfft_len /= k_N_SAMPLES_PER_OPERAND;
 
-                    Sample* a_real = store_a_real;
-                    Sample* a_imag = store_a_imag;
-
-                    Sample* b_real = store_b_real;
-                    Sample* b_imag = store_b_imag;
+                    const Sample* a_real = transform_real;
+                    const Sample* a_imag = transform_imag;
+                    Sample* b_real = transform_real;
+                    Sample* b_imag = transform_imag;
 
                     for (
                         std::size_t subfft_id = 0; 
@@ -274,7 +225,7 @@ namespace goldenrockefeller{ namespace afft{
                         Operand dft_operand_real;
                         Operand dft_operand_imag;
                         Operand a_operand_real = Operand(*a_real); 
-                        Operand a_operand_imag = Operand(*a_imag);
+                        Operand a_operand_imag = Operand(*a_imag);     
 
                         Operand b_operand_real = a_operand_real;
                         Operand b_operand_imag = a_operand_imag;
@@ -324,16 +275,12 @@ namespace goldenrockefeller{ namespace afft{
                             a_imag++;
                         }
 
-                        Store(b_real, b_operand_real);
+                        Store(b_imag, b_operand_real);
                         Store(b_imag, b_operand_imag);
 
                         b_real += k_N_SAMPLES_PER_OPERAND;
                         b_imag += k_N_SAMPLES_PER_OPERAND;
-
                     }
-
-                    std::swap(store_a_real, store_b_real);
-                    std::swap(store_a_imag, store_b_imag);
                 }
 
                 //--------------------------------------------------------------
@@ -343,14 +290,14 @@ namespace goldenrockefeller{ namespace afft{
                     subfft_len = subfft_len << 2;
                     n_subfft_len = n_subfft_len >> 2;
 
-                    auto a0_real = store_a_real;
-                    auto a1_real = store_a_real + 1;
-                    auto a2_real = store_a_real + 2;
-                    auto a3_real = store_a_real + 3;
-                    auto a0_imag = store_a_imag;
-                    auto a1_imag = store_a_imag + 1;
-                    auto a2_imag = store_a_imag + 2;
-                    auto a3_imag = store_a_imag + 3; 
+                    auto a0_real = transform_real;
+                    auto a1_real = transform_real + 1;
+                    auto a2_real = transform_real + 2;
+                    auto a3_real = transform_real + 3;
+                    auto a0_imag = transform_imag;
+                    auto a1_imag = transform_imag + 1;
+                    auto a2_imag = transform_imag + 2;
+                    auto a3_imag = transform_imag + 3; 
 
                     Sample b0_real;
                     Sample b1_real;
@@ -413,14 +360,14 @@ namespace goldenrockefeller{ namespace afft{
                     std::size_t two_subtwiddle_len = 2 * subtwiddle_len;
                     std::size_t three_subtwiddle_len = 3 * subtwiddle_len;
 
-                    auto a0_real = store_a_real;
-                    auto a1_real = store_a_real + subtwiddle_len;
-                    auto a2_real = store_a_real + two_subtwiddle_len;
-                    auto a3_real = store_a_real + three_subtwiddle_len;
-                    auto a0_imag = store_a_imag;
-                    auto a1_imag = store_a_imag + subtwiddle_len;
-                    auto a2_imag = store_a_imag + two_subtwiddle_len;
-                    auto a3_imag = store_a_imag + three_subtwiddle_len; 
+                    auto a0_real = transform_real;
+                    auto a1_real = transform_real + subtwiddle_len;
+                    auto a2_real = transform_real + two_subtwiddle_len;
+                    auto a3_real = transform_real + three_subtwiddle_len;
+                    auto a0_imag = transform_imag;
+                    auto a1_imag = transform_imag + subtwiddle_len;
+                    auto a2_imag = transform_imag + two_subtwiddle_len;
+                    auto a3_imag = transform_imag + three_subtwiddle_len; 
 
                     auto tw1_real = twiddle_real[0].data();
                     auto tw2_real = twiddle_real[1].data();
