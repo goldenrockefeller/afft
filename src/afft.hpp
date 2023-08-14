@@ -207,7 +207,7 @@ namespace goldenrockefeller{ namespace afft{
                 //--------------------------------------------------------------
                 // DFT PHASE
                 //--------------------------------------------------------------
-
+                
                 if (k_N_SAMPLES_PER_OPERAND > 1) {
                     subfft_len *= k_N_SAMPLES_PER_OPERAND
                     n_subfft_len /= k_N_SAMPLES_PER_OPERAND;
@@ -284,7 +284,7 @@ namespace goldenrockefeller{ namespace afft{
                 }
 
                 //--------------------------------------------------------------
-                // Radix 4 Butterfly
+                // RADIX-4 PHASE
                 //--------------------------------------------------------------
                 if (k_N_SAMPLES_PER_OPERAND == 1) {
                     subfft_len = subfft_len << 2;
@@ -343,7 +343,7 @@ namespace goldenrockefeller{ namespace afft{
                         a3_imag += 4;
                     }                   
                 }
-                auto op_len = subfft_len / k_N_SAMPLES_PER_OPERAND;
+
                 for (
                     std::size_t butterfly_id 
                         = size_t(k_N_SAMPLES_PER_OPERAND == 1); 
@@ -369,13 +369,6 @@ namespace goldenrockefeller{ namespace afft{
                     auto a2_imag = transform_imag + two_subtwiddle_len;
                     auto a3_imag = transform_imag + three_subtwiddle_len; 
 
-                    auto tw1_real = twiddle_real[0].data();
-                    auto tw2_real = twiddle_real[1].data();
-                    auto tw3_real = twiddle_real[2].data();
-                    auto tw1_imag = twiddle_imag[0].data();
-                    auto tw2_imag = twiddle_imag[1].data();
-                    auto tw3_imag = twiddle_imag[2].data();
-
                     std::size_t jump = std::size_t(subfft_len - subtwiddle_len);
 
                     for (
@@ -383,10 +376,18 @@ namespace goldenrockefeller{ namespace afft{
                         subfft_id < n_subfft_len;
                         subfft_id++
                     ) {
+
+                        auto tw1_real = twiddle_real[0].data();
+                        auto tw2_real = twiddle_real[1].data();
+                        auto tw3_real = twiddle_real[2].data();
+                        auto tw1_imag = twiddle_imag[0].data();
+                        auto tw2_imag = twiddle_imag[1].data();
+                        auto tw3_imag = twiddle_imag[2].data();
+
                         for (
-                        std::size_t op = 0;; 
-                        op < op_len;
-                        op++
+                            std::size_t i = 0; 
+                            i < subtwiddle_len;
+                            i += k_N_SAMPLES_PER_OPERAND
                         ) {
                             Operand a0_operand_real;
                             Operand a1_operand_real;
@@ -398,13 +399,14 @@ namespace goldenrockefeller{ namespace afft{
                             Operand a3_operand_imag;
 
                             Load(a0_real, a0_operand_real);
-                            Load(a0_imag, a0_operand_imag);
                             Load(a1_real, a1_operand_real);
-                            Load(a1_imag, a1_operand_imag);
                             Load(a2_real, a2_operand_real);
-                            Load(a2_imag, a2_operand_imag);
                             Load(a3_real, a3_operand_real);
+                            Load(a0_imag, a0_operand_imag);
+                            Load(a1_imag, a1_operand_imag);
+                            Load(a2_imag, a2_operand_imag);
                             Load(a3_imag, a3_operand_imag);
+                            
                             {
                                 Operand tw1_operand_real;
                                 Operand tw2_operand_real;
@@ -414,10 +416,10 @@ namespace goldenrockefeller{ namespace afft{
                                 Operand tw3_operand_imag;
 
                                 Load(tw1_real, tw1_operand_real);
-                                Load(tw1_imag, tw1_operand_imag);
                                 Load(tw2_real, tw2_operand_real);
-                                Load(tw2_imag, tw2_operand_imag);
                                 Load(tw3_real, tw3_operand_real);
+                                Load(tw1_imag, tw1_operand_imag);
+                                Load(tw2_imag, tw2_operand_imag);
                                 Load(tw3_imag, tw3_operand_imag);
 
                                 a1_operand_real 
@@ -444,12 +446,12 @@ namespace goldenrockefeller{ namespace afft{
                                     = a3_operand_imag * tw3_operand_real
                                     + a3_operand_real * tw3_operand_imag;
 
-                                tw1_real += jump;
-                                tw2_real += jump;
-                                tw3_real += jump;
-                                tw1_imag += jump;
-                                tw2_imag += jump;
-                                tw3_imag += jump;
+                                tw1_real += k_N_SAMPLES_PER_OPERAND;
+                                tw2_real += k_N_SAMPLES_PER_OPERAND;
+                                tw3_real += k_N_SAMPLES_PER_OPERAND;
+                                tw1_imag += k_N_SAMPLES_PER_OPERAND;
+                                tw2_imag += k_N_SAMPLES_PER_OPERAND;
+                                tw3_imag += k_N_SAMPLES_PER_OPERAND;
                             }
                             {
                                 Operand b0_operand_real;
@@ -525,18 +527,122 @@ namespace goldenrockefeller{ namespace afft{
                             Store(a2_imag, a2_operand_imag);
                             Store(a3_imag, a3_operand_imag);
 
-                            a0_real += jump;
-                            a1_real += jump;
-                            a2_real += jump;
-                            a3_real += jump;
-                            a0_imag += jump;
-                            a1_imag += jump;
-                            a2_imag += jump;
-                            a3_imag += jump;
+                            a0_real += k_N_SAMPLES_PER_OPERAND;
+                            a1_real += k_N_SAMPLES_PER_OPERAND;
+                            a2_real += k_N_SAMPLES_PER_OPERAND;
+                            a3_real += k_N_SAMPLES_PER_OPERAND;
+                            a0_imag += k_N_SAMPLES_PER_OPERAND;
+                            a1_imag += k_N_SAMPLES_PER_OPERAND;
+                            a2_imag += k_N_SAMPLES_PER_OPERAND;
+                            a3_imag += k_N_SAMPLES_PER_OPERAND;
                         }
-                    }
-                    op_len << 2;   
+                        a0_real += jump;
+                        a1_real += jump;
+                        a2_real += jump;
+                        a3_real += jump;
+                        a0_imag += jump;
+                        a1_imag += jump;
+                        a2_imag += jump;
+                        a3_imag += jump;
+                    } 
                 }
+
+                // -------------------------------------------------------------
+                // RADIX-2 PHASE
+                // -------------------------------------------------------------
+                if (using_final_radix_2_butterfly) {
+                    auto subtwiddle_len = subfft_len;
+                    n_subfft_len = n_subfft_len >> 1;
+                    
+                    std::size_t last_twiddle_id 
+                        = std::size_t(twiddles_real.size() - 1);
+
+                    auto& twiddle_real = twiddles_real[last_twiddle_id];
+                    auto& twiddle_imag = twiddles_imag[last_twiddle_id];
+
+                    auto a0_real = transform_real;
+                    auto a1_real = transform_real + subtwiddle_len;
+                    auto a0_imag = transform_imag;
+                    auto a1_imag = transform_imag + subtwiddle_len;
+
+                    for (
+                        std::size_t subfft_id = 0;; 
+                        subfft_id < n_subfft_len;
+                        subfft_id++
+                    ) {
+
+                        auto tw1_real = twiddle_real[0].data();
+                        auto tw1_imag = twiddle_imag[0].data();
+
+                        for (
+                            std::size_t i = 0; 
+                            i < subtwiddle_len;
+                            i += k_N_SAMPLES_PER_OPERAND
+                        ) {
+                            Operand a0_operand_real;
+                            Operand a1_operand_real;
+                            Operand a0_operand_imag;
+                            Operand a1_operand_imag;
+
+                            Load(a0_real, a0_operand_real);
+                            Load(a1_real, a1_operand_real);
+                            
+                            Load(a0_imag, a0_operand_imag);
+                            Load(a1_imag, a1_operand_imag);
+
+                            {
+                                Operand tw1_operand_real;
+                                Operand tw1_operand_imag;
+
+                                Load(tw1_real, tw1_operand_real);
+                                Load(tw1_imag, tw1_operand_imag);
+
+                                a1_operand_real 
+                                    = a1_operand_real * tw1_operand_real
+                                    - a1_operand_imag * tw1_operand_imag;
+
+                                a1_operand_imag 
+                                    = a1_operand_imag * tw1_operand_real
+                                    + a1_operand_real * tw1_operand_imag;
+
+                                tw1_real += k_N_SAMPLES_PER_OPERAND;
+                                tw1_imag += k_N_SAMPLES_PER_OPERAND;
+                            }
+                            {
+                                Operand b0_operand_real;
+                                Operand b1_operand_real;
+                                Operand b0_operand_imag;
+                                Operand b1_operand_imag;
+
+                                b0_operand_real 
+                                    = a0_operand_real 
+                                    + a1_operand_real;
+
+                                b1_operand_real 
+                                    = a0_operand_real 
+                                    - a1_operand_real;
+
+                                b0_operand_imag 
+                                    = a0_operand_imag 
+                                    + a1_operand_imag;
+                                b1_operand_imag 
+                                    = a0_operand_imag 
+                                    - a1_operand_imag;
+
+                                Store(a0_real, b0_operand_real);
+                                Store(a1_real, b1_operand_real);
+                                Store(a0_imag, b0_operand_imag);
+                                Store(a1_imag, b1_operand_imag);
+                            }
+                            
+                            a0_real += k_N_SAMPLES_PER_OPERAND;
+                            a1_real += k_N_SAMPLES_PER_OPERAND;
+                            a0_imag += k_N_SAMPLES_PER_OPERAND;
+                            a1_imag += k_N_SAMPLES_PER_OPERAND;
+                        }
+                    } 
+                }
+
             }
 
         private:
