@@ -11,7 +11,7 @@ struct OperandSpec{
 };
 
 int main() {
-    Fft<8, StdSpec<double>, OperandSpec<double>> fft;
+    FftComplex<8, StdSpec<double>, OperandSpec<double>> fft;
 
     cout << "std::size_t n_radix_4_butterflies;" << endl;
     cout << fft.n_radix_4_butterflies << endl;

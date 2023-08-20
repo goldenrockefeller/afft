@@ -21,29 +21,27 @@ namespace goldenrockefeller{ namespace afft{
     }
 
     std::vector<std::size_t> ScrambledIndexes(std::size_t n_indexes) {
-        std::size_t index_adder = n_indexes >> 1;
-        std::vector<std::size_t> scrambled_indexes = {0};
-        auto n_scrambled_indexes_steps = IntLog2(n_indexes);
-
-        if (n_scrambled_indexes_steps == 0) {
-            return scrambled_indexes;
-        }
-        
-        scrambled_indexes.push_back(index_adder);
+        std::vector<std::size_t> scrambled_indexes(n_indexes);
+        std::size_t n_bits = IntLog2(n_indexes);
 
         for (
-            std::size_t i = 0; 
-            i < (n_scrambled_indexes_steps-1);
-            i++
+            std::size_t id = 0;
+            id < n_indexes;
+            id++
         ) {
-            index_adder = index_adder >> 1;
-            auto scrambled_indexes_next = scrambled_indexes;
-            for (auto index : scrambled_indexes) {
-                scrambled_indexes_next.push_back(index + index_adder);
+            auto work = id;
+            std::size_t bit_reversed_id = 0;
+            for (
+                std::size_t bit_id = 0;
+                bit_id < n_bits;
+                bit_id++
+            ) {
+                bit_reversed_id = bit_reversed_id << 1;
+                bit_reversed_id += work & 1;
+                work = work >> 1;
             }
-            scrambled_indexes = scrambled_indexes_next;
+            scrambled_indexes[id] = bit_reversed_id;
         }
-
         return scrambled_indexes;
     }
 
@@ -147,9 +145,7 @@ namespace goldenrockefeller{ namespace afft{
                     ScrambledIndexes(k_N_SAMPLES_PER_OPERAND)
                 ),
                 dft_real(Dft(scrambled_indexes_dft, Cos, 1)),
-                dft_imag(Dft(scrambled_indexes_dft, Sin, -1)),
-                work_real(k_TRANSFORM_LEN),
-                work_imag(k_TRANSFORM_LEN)
+                dft_imag(Dft(scrambled_indexes_dft, Sin, -1))
             {
                     // Nothing else to do.
             }
@@ -159,7 +155,7 @@ namespace goldenrockefeller{ namespace afft{
                 Sample* transform_real, 
                 Sample* transform_imag,
                 Sample* signal_real, 
-                Sample* signal_imag,
+                Sample* signal_imag
             ) const {
                 constexpr bool k_DFT_IS_FINAL_PHASE 
                     = k_TRANSFORM_LEN == k_N_SAMPLES_PER_OPERAND;
@@ -209,7 +205,7 @@ namespace goldenrockefeller{ namespace afft{
                 //--------------------------------------------------------------
                 
                 if (k_N_SAMPLES_PER_OPERAND > 1) {
-                    subfft_len *= k_N_SAMPLES_PER_OPERAND
+                    subfft_len *= k_N_SAMPLES_PER_OPERAND;
                     n_subfft_len /= k_N_SAMPLES_PER_OPERAND;
 
                     const Sample* a_real = transform_real;
@@ -309,7 +305,7 @@ namespace goldenrockefeller{ namespace afft{
                     Sample b3_imag;
 
                     for (
-                        std::size_t subfft_id = 0;; 
+                        std::size_t subfft_id = 0;
                         subfft_id < n_subfft_len;
                         subfft_id++
                     ) {
@@ -372,7 +368,7 @@ namespace goldenrockefeller{ namespace afft{
                     std::size_t jump = std::size_t(subfft_len - subtwiddle_len);
 
                     for (
-                        std::size_t subfft_id = 0;; 
+                        std::size_t subfft_id = 0;
                         subfft_id < n_subfft_len;
                         subfft_id++
                     ) {
@@ -566,7 +562,7 @@ namespace goldenrockefeller{ namespace afft{
                     auto a1_imag = transform_imag + subtwiddle_len;
 
                     for (
-                        std::size_t subfft_id = 0;; 
+                        std::size_t subfft_id = 0;
                         subfft_id < n_subfft_len;
                         subfft_id++
                     ) {
