@@ -1,6 +1,11 @@
 #include <iostream>
 #include "afft.hpp"
 #include "spec.hpp"
+#include "pffft_double.h"
+//#include "pffft.hpp"
+#include "fft.h"
+#include "PGFFT.h"
+
 
 using namespace std;
 using namespace goldenrockefeller::afft;
@@ -11,75 +16,82 @@ struct OperandSpec{
 };
 
 int main() {
-    FftComplex<8, StdSpec<double>, OperandSpec<double>> fft;
+    constexpr std::size_t transformLen = 32;
+    // 256, double, double, forward
+    // 512, double, double, forward
+    // 32, double, AVX, forward
+    // 256, double AVX, forward
+    // 512, double AVX, forward
 
-    cout << "std::size_t n_radix_4_butterflies;" << endl;
-    cout << fft.n_radix_4_butterflies << endl;
-    cout << "------------------------" << endl << endl;
+    PFFFTD_Setup *ffts = pffftd_new_setup(transformLen, PFFFT_COMPLEX);
+    PGFFT pgfft(transformLen);
+    //mufft_plan_1d *muplan = mufft_create_plan_1d_c2c(transformLen, 1, MUFFT_FLAG_CPU_NO_SIMD);
 
-    cout << "std::size_t n_radix_2_butterflies;" << endl;
-    cout << fft.n_radix_2_butterflies << endl;
-    cout << "------------------------" << endl << endl;
+    double *X = (double*)pffftd_aligned_malloc(transformLen * 2 * sizeof(double));  /* complex: re/im interleaved */
+    double *Y = (double*)pffftd_aligned_malloc(transformLen * 2 * sizeof(double));  /* complex: re/im interleaved */
+    double *Z = (double*)pffftd_aligned_malloc(transformLen * 2 * sizeof(double));  /* complex: re/im not-interleaved */
+    double *W = (double*)pffftd_aligned_malloc(transformLen * 2 * sizeof(double));
 
-    cout << "bool using_final_radix_2_butterfly;" << endl;
-    cout << fft.using_final_radix_2_butterfly << endl;
-    cout << "------------------------" << endl << endl;
+    // /* prepare some input data */
+    // for (int k = 0; k < 2 * transformLen; k += 4)
+    // {
+    //     X[k] =  k / 2;  /* real */
+    //     X[k+1] = (k / 2) & 1;  /* imag */
 
-    cout << "std::vector<std::vector<std::vector<Sample>>> twiddles_real;" << endl;
-    for (auto& twiddle : fft.twiddles_real){
-        for (auto& subtwiddle : twiddle) {
-            for (auto& elem : subtwiddle) {
-                cout << elem << ",";
-            }
-            cout << endl; 
+    //     X[k+2] = -1 - k / 2;  /* real */
+    //     X[k+3] = (k / 2) & 1;  /* imag */
+    // }
+
+    //mufft_execute_plan_1d(muplan, Y, X);
+
+    //pffftd_transform(ffts, X, Y, W, PFFFT_FORWARD);
+
+    std::complex<double> *x = (std::complex<double> *)X;
+    std::complex<double> *y = (std::complex<double> *)Y;
+
+    for (int k = 0; k < transformLen; k += 2)
+    {
+        x[k] =  std::complex<double>(k/2, (k / 2) & 1);
+        x[k+1] = std::complex<double>( -1 - k / 2, (k / 2) & 1);  /* imag */
+    }
+
+    pgfft.apply(x,  y);
+
+    FftComplex<transformLen, StdSpec<double>, Double4Spec> fft;
+
+    /* prepare some input data */
+    for (int k = 0; k < transformLen; k += 2)
+    {
+        Z[k] =  k / 2;  /* real */
+        Z[k+transformLen] = (k / 2) & 1;  /* imag */
+
+        Z[k+1] = -1 - k / 2;  /* real */
+        Z[k+1+transformLen] = (k / 2) & 1;  /* imag */
+    }
+
+    fft.Process<false>(X, X+transformLen, Z, Z+transformLen);
+
+    /* compare output data */
+    double diff = 0;
+    for (int k = 0; k < transformLen; k += 1)
+    {
+        double new_diff = abs(Y[2 * k] - X[k]) + abs(Y[2 * k + 1] - X[k + transformLen]);
+
+        cout << X[k] << " " << X[k + transformLen] << endl;
+
+        if (new_diff > diff) {
+            diff = new_diff;
         }
-        cout << endl;
     }
-    cout << "------------------------" << endl << endl;
 
-    cout << "std::vector<std::vector<std::vector<Sample>>> twiddles_imag;" << endl;
-    for (auto& twiddle : fft.twiddles_imag){
-        for (auto& subtwiddle : twiddle) {
-            for (auto& elem : subtwiddle) {
-                cout << elem << ",";
-            }
-            cout << endl; 
-        }
-        cout << endl;
-    }
-    cout << "------------------------" << endl << endl;
+    cout << diff << endl;
 
-    cout << "std::vector<std::size_t> scrambled_indexes;" << endl;
-    for (auto& id : fft.scrambled_indexes){
-        cout << id << ",";
-    }
-    cout << endl;
-    cout << "------------------------" << endl << endl;
-    
-    cout << "std::vector<std::size_t> scrambled_indexes_dft;" << endl;
-    for (auto& id : fft.scrambled_indexes_dft){
-        cout << id << ",";
-    }
-    cout << endl;
-    cout << "------------------------" << endl << endl;
-    
-    cout << "std::vector<std::vector<Sample>> dft_real;" << endl;
-    for (auto& dft_basis : fft.dft_real){
-        for (auto& elem : dft_basis) {
-            cout << elem << ",";
-        }
-        cout << endl;
-    }
-    cout << "------------------------" << endl << endl;
-
-    cout << "std::vector<std::vector<Sample>> dft_imag;" << endl;
-    for (auto& dft_basis : fft.dft_imag){
-        for (auto& elem : dft_basis) {
-            cout << elem << ",";
-        }
-        cout << endl;
-    }
-    cout << "------------------------" << endl << endl;
+    // mufft_free_plan_1d(muplan);
+    pffftd_aligned_free(W);
+    pffftd_aligned_free(Y);
+    pffftd_aligned_free(X);
+    pffftd_aligned_free(Z);
+    pffftd_destroy_setup(ffts);
 
     return 0;
 }
