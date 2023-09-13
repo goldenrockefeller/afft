@@ -2,9 +2,9 @@
 #include "afft.hpp"
 #include "spec.hpp"
 #include "pffft_double.h"
-//#include "pffft.hpp"
 #include "fft.h"
 #include "PGFFT.h"
+#include "kiss_fft.h"
 
 
 using namespace std;
@@ -25,7 +25,7 @@ int main() {
 
     PFFFTD_Setup *ffts = pffftd_new_setup(transformLen, PFFFT_COMPLEX);
     PGFFT pgfft(transformLen);
-    //mufft_plan_1d *muplan = mufft_create_plan_1d_c2c(transformLen, 1, MUFFT_FLAG_CPU_NO_SIMD);
+    kiss_fft_cfg cfg=kiss_fft_alloc(transformLen,0,NULL,NULL);
 
     double *X = (double*)pffftd_aligned_malloc(transformLen * 2 * sizeof(double));  /* complex: re/im interleaved */
     double *Y = (double*)pffftd_aligned_malloc(transformLen * 2 * sizeof(double));  /* complex: re/im interleaved */
@@ -42,9 +42,6 @@ int main() {
     //     X[k+3] = (k / 2) & 1;  /* imag */
     // }
 
-    //mufft_execute_plan_1d(muplan, Y, X);
-
-    //pffftd_transform(ffts, X, Y, W, PFFFT_FORWARD);
 
     std::complex<double> *x = (std::complex<double> *)X;
     std::complex<double> *y = (std::complex<double> *)Y;
@@ -55,7 +52,9 @@ int main() {
         x[k+1] = std::complex<double>( -1 - k / 2, (k / 2) & 1);  /* imag */
     }
 
-    pgfft.apply(x,  y);
+    // pffftd_transform(ffts, (double*) x,  (double*) y, W, PFFFT_FORWARD);
+    //pgfft.apply(x,  y);
+    kiss_fft( cfg , (kiss_fft_cpx*) x ,  (kiss_fft_cpx*) y );
 
     FftComplex<transformLen, StdSpec<double>, Double4Spec> fft;
 
@@ -86,12 +85,12 @@ int main() {
 
     cout << diff << endl;
 
-    // mufft_free_plan_1d(muplan);
     pffftd_aligned_free(W);
     pffftd_aligned_free(Y);
     pffftd_aligned_free(X);
     pffftd_aligned_free(Z);
     pffftd_destroy_setup(ffts);
+    kiss_fft_free(cfg);
 
     return 0;
 }

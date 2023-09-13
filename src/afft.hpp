@@ -23,7 +23,7 @@ namespace goldenrockefeller{ namespace afft{
     }
 
     template <typename Value>
-    Value rem2(Value x){
+    Value Rem2(Value x){
         return x - std::intmax_t(x/2) * 2;
     }
 
@@ -692,21 +692,21 @@ namespace goldenrockefeller{ namespace afft{
                             = multiplier
                             * trig_fn(
                                 Pi() 
-                                * rem2(Sample(factor_id) / subtwiddle_len)
+                                * Rem2(Sample(factor_id) / subtwiddle_len)
                             );
 
                         twiddle[1][factor_id] 
                             = multiplier 
                             * trig_fn(
                                 Pi() 
-                                * rem2(Sample(factor_id) * 0.5 / subtwiddle_len)
+                                * Rem2(Sample(factor_id) * 0.5 / subtwiddle_len)
                             );
 
                         twiddle[2][factor_id] 
                             = multiplier 
                             * trig_fn(
                                 Pi() 
-                                * rem2(Sample(factor_id) * 1.5 / subtwiddle_len)
+                                * Rem2(Sample(factor_id) * 1.5 / subtwiddle_len)
                             );
                     }
                     subtwiddle_len *= 4;
@@ -726,7 +726,7 @@ namespace goldenrockefeller{ namespace afft{
                             = multiplier 
                             * trig_fn(
                                 Pi() 
-                                * rem2(Sample(factor_id) / subtwiddle_len)
+                                * Rem2(Sample(factor_id) / subtwiddle_len)
                             );
                     }
                 }
@@ -762,7 +762,7 @@ namespace goldenrockefeller{ namespace afft{
                             = multiplier 
                             * trig_fn(
                                 Pi() 
-                                * rem2(
+                                * Rem2(
                                     Sample(factor_id)
                                     * 2 
                                     * scrambled_basis_index 
