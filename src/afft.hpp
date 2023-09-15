@@ -289,21 +289,18 @@ namespace goldenrockefeller{ namespace afft{
                                 = A_imag 
                                 + (a << (log_reversal_len +q)) 
                                 + (b << q);
-                    // #ifdef USE_PD4
-                    //         for (long c = 0; c < (1 << q); c += 4) {
-                    //             PD4 x0 = PD4::load(reinterpret_cast<const double*>(&A_p[c+0]));
-                    //             PD4 x1 = PD4::load(reinterpret_cast<const double*>(&A_p[c+2]));
-                    //             store(reinterpret_cast<double*>(&T_p[c+0]), x0);
-                    //             store(reinterpret_cast<double*>(&T_p[c+2]), x1);
-                    //         }
-                    // #else
+                                
                             for (
                                 long c = 0; 
                                 c < scrambled_indexes_2.size(); 
-                                c++
+                                c+=k_N_SAMPLES_PER_OPERAND
                             ) {
-                                T_p_real[c] = A_p_real[c];
-                                T_p_imag[c] = A_p_imag[c];
+                                Operand store_real;
+                                Operand store_imag;
+                                Load(A_p_real + c, store_real);
+                                Load(A_p_imag + c, store_imag);
+                                Store(T_p_real + c, store_real);
+                                Store(T_p_imag + c, store_imag);
                             }
                         }
 
@@ -330,7 +327,7 @@ namespace goldenrockefeller{ namespace afft{
                             for (
                                 long a1 = 0; 
                                 a1 < (1l << q); 
-                                a1++
+                                a1+=1
                             ) { 
                                 B_p_real[a1] = scale_factor * T_p_real[a1 << q];
                                 B_p_imag[a1] = scale_factor * T_p_imag[a1 << q];
