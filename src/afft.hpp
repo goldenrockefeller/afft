@@ -236,19 +236,6 @@ namespace goldenrockefeller{ namespace afft{
                             = scale_factor * signal_imag[old_index];
                     }
                 }
-                // for (
-                //     std::size_t new_index = 0;
-                //     new_index < transform_len; 
-                //     new_index++
-                // ) {
-                //     auto old_index = scrambled_indexes[new_index];
-
-                //     transform_real[new_index] 
-                //         = scale_factor * signal_real[old_index];
-
-                //     transform_imag[new_index] 
-                //         = scale_factor * signal_imag[old_index];
-                // }
                 else {
                     // Adapted from PGFFT
                     Sample* work_real = shuffle_work_real.data();
@@ -326,7 +313,7 @@ namespace goldenrockefeller{ namespace afft{
                             
                             for (
                                 long a1 = 0; 
-                                a1 < (1l << q); 
+                                a1 < scrambled_indexes_2.size(); 
                                 a1+=1
                             ) { 
                                 B_p_real[a1] = scale_factor * T_p_real[a1 << q];
@@ -354,64 +341,91 @@ namespace goldenrockefeller{ namespace afft{
                         subfft_id < n_subfft_len;
                         subfft_id++
                     ) {
-                        a_real = b_real;
-                        a_imag = b_imag;
+                        auto a_real_1 = b_real;
+                        auto a_imag_1 = b_imag;
+                        auto a_real_2 = b_real + 1;
+                        auto a_imag_2 = b_imag + 1;
 
-                        Operand dft_operand_real;
-                        Operand dft_operand_imag;
-                        Operand a_operand_real = Operand(*a_real); 
-                        Operand a_operand_imag = Operand(*a_imag);     
+                        Operand dft_operand_real_1;
+                        Operand dft_operand_imag_1;
+                        Operand dft_operand_real_2;
+                        Operand dft_operand_imag_2;
+                        Operand a_operand_real_1 = Operand(*a_real_1); 
+                        Operand a_operand_imag_1 = Operand(*a_imag_1);   
+                        Operand a_operand_real_2 = Operand(*a_real_2); 
+                        Operand a_operand_imag_2 = Operand(*a_imag_2);
 
-                        Operand b_operand_real = a_operand_real;
-                        Operand b_operand_imag = a_operand_imag;
-
-                        a_real++;
-                        a_imag++;
-
-                        a_operand_real = Operand(*a_real); 
-                        a_operand_imag = Operand(*a_imag);
+                        Operand b_operand_real_1 = a_operand_real_1;
+                        Operand b_operand_imag_1 = a_operand_imag_1;
 
                         Load(
                             dft_real[1].data(), 
-                            dft_operand_real
+                            dft_operand_real_2
                         );
                         
-                        b_operand_real += a_operand_real * dft_operand_real;
-                        b_operand_imag += a_operand_imag * dft_operand_real;
+                        Operand b_operand_real_2 
+                            = a_operand_real_2 * dft_operand_real_2;
+                        
+                        Operand b_operand_imag_2 
+                            = a_operand_imag_2 * dft_operand_real_2;
 
-                        a_real++;
-                        a_imag++;
+                        a_real_1 += 2;
+                        a_imag_1 += 2;
+                        a_real_2 += 2;
+                        a_imag_2 += 2;
 
                         for (
                             std::size_t dft_basis_id = 2; 
                             dft_basis_id < k_N_SAMPLES_PER_OPERAND;
-                            dft_basis_id++
+                            dft_basis_id += 2
                         ) {
-                            a_operand_real = Operand(*a_real); 
-                            a_operand_imag = Operand(*a_imag);
+                            Operand a_operand_real_1 = Operand(*a_real_1); 
+                            Operand a_operand_imag_1 = Operand(*a_imag_1);   
+                            Operand a_operand_real_2 = Operand(*a_real_2); 
+                            Operand a_operand_imag_2 = Operand(*a_imag_2);
+
                             Load(
                                 dft_real[dft_basis_id].data(), 
-                                dft_operand_real
+                                dft_operand_real_1
                             );
                             Load(
                                 dft_imag[dft_basis_id].data(), 
-                                dft_operand_imag
+                                dft_operand_imag_1
+                            );
+
+                            Load(
+                                dft_real[dft_basis_id+1].data(), 
+                                dft_operand_real_2
+                            );
+                            Load(
+                                dft_imag[dft_basis_id+1].data(), 
+                                dft_operand_imag_2
                             );
                             
-                            b_operand_real 
-                                += a_operand_real * dft_operand_real
-                                - a_operand_imag * dft_operand_imag;
+                            b_operand_real_1 
+                                += a_operand_real_1 * dft_operand_real_1
+                                - a_operand_imag_1 * dft_operand_imag_1;
 
-                            b_operand_imag 
-                                += a_operand_imag * dft_operand_real
-                                + a_operand_real * dft_operand_imag;
+                            b_operand_imag_1 
+                                += a_operand_imag_1 * dft_operand_real_1
+                                + a_operand_real_1 * dft_operand_imag_1;
+
+                            b_operand_real_2 
+                                += a_operand_real_2 * dft_operand_real_2
+                                - a_operand_imag_2 * dft_operand_imag_2;
+
+                            b_operand_imag_2 
+                                += a_operand_imag_2 * dft_operand_real_2
+                                + a_operand_real_2 * dft_operand_imag_2;
                         
-                            a_real++;
-                            a_imag++;
+                            a_real_1 += 2;
+                            a_imag_1 += 2;
+                            a_real_2 += 2;
+                            a_imag_2 += 2;
                         }
 
-                        Store(b_real, b_operand_real);
-                        Store(b_imag, b_operand_imag);
+                        Store(b_real, b_operand_real_1 + b_operand_real_2);
+                        Store(b_imag, b_operand_imag_1 + b_operand_imag_2);
 
                         b_real += k_N_SAMPLES_PER_OPERAND;
                         b_imag += k_N_SAMPLES_PER_OPERAND;

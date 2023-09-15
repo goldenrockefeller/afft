@@ -17,7 +17,7 @@ struct OperandSpec{
 };
 
 int main() {
-    constexpr std::size_t transformLen = 1 << 22;
+    constexpr std::size_t transformLen = 1 << 20;
     // 256, double, double, forward
     // 512, double, double, forward
     // 32, double, AVX, forward
@@ -57,8 +57,8 @@ int main() {
     //pgfft.apply(x,  y);
     kiss_fft( cfg , (kiss_fft_cpx*) x ,  (kiss_fft_cpx*) y );
     
-
     FftComplex<StdSpec<double>, Double4Spec> fft(transformLen);
+    FftComplex<StdSpec<double>, StdSpec<double>> fft_slow(transformLen);
 
     /* prepare some input data */
     for (int k = 0; k < transformLen; k += 2)
@@ -95,9 +95,9 @@ int main() {
 
     bench.minEpochIterations(10);
 
-    // bench.run("Kiss", [&]() {
-    //     kiss_fft( cfg , (kiss_fft_cpx*) x ,  (kiss_fft_cpx*) y );
-    // });
+    bench.run("Kiss", [&]() {
+        kiss_fft( cfg , (kiss_fft_cpx*) x ,  (kiss_fft_cpx*) y );
+    });
 
     bench.run("PGFFT", [&]() {
         pgfft.apply(x,  y);
@@ -109,6 +109,10 @@ int main() {
 
     bench.run("AFFT", [&]() {
         fft.Process<false>(X, X+transformLen, Z, Z+transformLen);
+    });
+
+    bench.run("AFFT Slow", [&]() {
+        fft_slow.Process<false>(X, X+transformLen, Z, Z+transformLen);
     });
 
     pffftd_aligned_free(W);
