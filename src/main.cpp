@@ -5,6 +5,7 @@
 #include "fft.h"
 #include "PGFFT.h"
 #include "kiss_fft.h"
+#include "nanobench.h"
 
 
 using namespace std;
@@ -16,7 +17,7 @@ struct OperandSpec{
 };
 
 int main() {
-    constexpr std::size_t transformLen = 32;
+    constexpr std::size_t transformLen = 1 << 22;
     // 256, double, double, forward
     // 512, double, double, forward
     // 32, double, AVX, forward
@@ -41,7 +42,7 @@ int main() {
     //     X[k+2] = -1 - k / 2;  /* real */
     //     X[k+3] = (k / 2) & 1;  /* imag */
     // }
-
+    
 
     std::complex<double> *x = (std::complex<double> *)X;
     std::complex<double> *y = (std::complex<double> *)Y;
@@ -55,8 +56,9 @@ int main() {
     // pffftd_transform(ffts, (double*) x,  (double*) y, W, PFFFT_FORWARD);
     //pgfft.apply(x,  y);
     kiss_fft( cfg , (kiss_fft_cpx*) x ,  (kiss_fft_cpx*) y );
+    
 
-    FftComplex<transformLen, StdSpec<double>, Double4Spec> fft;
+    FftComplex<StdSpec<double>, Double4Spec> fft(transformLen);
 
     /* prepare some input data */
     for (int k = 0; k < transformLen; k += 2)
@@ -76,14 +78,38 @@ int main() {
     {
         double new_diff = abs(Y[2 * k] - X[k]) + abs(Y[2 * k + 1] - X[k + transformLen]);
 
-        cout << X[k] << " " << X[k + transformLen] << endl;
-
         if (new_diff > diff) {
             diff = new_diff;
         }
     }
 
     cout << diff << endl;
+
+    cout << PGFFT::simd_enabled() << endl;
+
+    
+    ankerl::nanobench::Bench bench;
+    ostringstream title_stream;
+    title_stream << "Size: " << transformLen;
+    bench.title(title_stream.str());
+
+    bench.minEpochIterations(10);
+
+    // bench.run("Kiss", [&]() {
+    //     kiss_fft( cfg , (kiss_fft_cpx*) x ,  (kiss_fft_cpx*) y );
+    // });
+
+    bench.run("PGFFT", [&]() {
+        pgfft.apply(x,  y);
+    });
+
+    bench.run("PFFFT", [&]() {
+        pffftd_transform(ffts, (double*) x,  (double*) y, W, PFFFT_FORWARD);
+    });
+
+    bench.run("AFFT", [&]() {
+        fft.Process<false>(X, X+transformLen, Z, Z+transformLen);
+    });
 
     pffftd_aligned_free(W);
     pffftd_aligned_free(Y);

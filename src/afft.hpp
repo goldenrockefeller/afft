@@ -53,9 +53,9 @@ namespace goldenrockefeller{ namespace afft{
     }
 
     template<
-        std::size_t k_TRANSFORM_LEN, 
         typename SampleSpec, 
-        typename OperandSpec>
+        typename OperandSpec
+    >
     class FftComplex {
     
         using Sample = typename SampleSpec::Value;
@@ -66,6 +66,17 @@ namespace goldenrockefeller{ namespace afft{
 
         static inline Sample Pi(){
             return SampleSpec::Pi();
+        }
+
+        // Use to determine COBRA buffer size. 2^PGFFT_BRC_THRESH should fit in 
+        // cache.
+        static inline std::size_t PGFFT_BRC_Q() {
+            return 5;
+        }
+
+        // After 2^PGFFT_BRC_THRESH, we will use COBRA bit reversal strategy
+        static inline std::size_t PGFFT_BRC_THRESH() {
+            return 11;
         }
 
         static inline Sample Cos(const Sample& x){
@@ -84,32 +95,33 @@ namespace goldenrockefeller{ namespace afft{
             OperandSpec::Store(t, x);
         }
 
-        static_assert(
-            ((k_TRANSFORM_LEN & (k_TRANSFORM_LEN-1)) == 0), 
-            "The transform length must be a power of 2"
-        );
+        // static_assert(
+        //     ((transform_len & (transform_len-1)) == 0), 
+        //     "The transform length must be a power of 2"
+        // );
 
         static_assert(
             ((k_N_SAMPLES_PER_OPERAND & (k_N_SAMPLES_PER_OPERAND-1)) == 0), 
             "The number of samples per operand must be a power of 2"
         );
 
-        static_assert(
-            (k_TRANSFORM_LEN >= k_N_SAMPLES_PER_OPERAND), 
-            "The transform length must not be less than the operand size."
-        );
+        // static_assert(
+        //     (transform_len >= k_N_SAMPLES_PER_OPERAND), 
+        //     "The transform length must not be less than the operand size."
+        // );
 
         static_assert(
             (k_N_SAMPLES_PER_OPERAND>=1), 
             "The number of samples per operand must be positive"
         );
 
-        static_assert(
-            (k_TRANSFORM_LEN>=4), 
-            "The transform length must 4 or greater."
-        );
+        // static_assert(
+        //     (transform_len>=4), 
+        //     "The transform length must 4 or greater."
+        // );
         public:
-        
+           std::size_t transform_len;
+
             std::size_t n_radix_2_butterflies;
             std::size_t n_radix_4_butterflies;
             bool using_final_radix_2_butterfly;
@@ -117,15 +129,23 @@ namespace goldenrockefeller{ namespace afft{
             std::vector<std::vector<std::vector<Sample>>> twiddles_real;
             std::vector<std::vector<std::vector<Sample>>> twiddles_imag;
 
+            std::size_t log_len;
+            std::size_t log_reversal_len;
+
             std::vector<std::size_t> scrambled_indexes;
+            std::vector<std::size_t> scrambled_indexes_2;
             std::vector<std::size_t> scrambled_indexes_dft;
 
             std::vector<std::vector<Sample>> dft_real;
             std::vector<std::vector<Sample>> dft_imag;
+
+            mutable std::vector<Sample> shuffle_work_real;
+            mutable std::vector<Sample> shuffle_work_imag;
         
-            FftComplex():
+            FftComplex(std::size_t transform_len):
+                transform_len(transform_len),
                 n_radix_2_butterflies(
-                    IntLog2(k_TRANSFORM_LEN / k_N_SAMPLES_PER_OPERAND)
+                    IntLog2(transform_len / k_N_SAMPLES_PER_OPERAND)
                 ),
                 n_radix_4_butterflies(n_radix_2_butterflies >> 1),
                 using_final_radix_2_butterfly(
@@ -147,12 +167,24 @@ namespace goldenrockefeller{ namespace afft{
                         -1
                     )
                 ),
-                scrambled_indexes(ScrambledIndexes(k_TRANSFORM_LEN)),
+                log_len(IntLog2(transform_len)),
+                log_reversal_len(
+                    log_len * std::size_t(log_len < PGFFT_BRC_THRESH())
+                    + (log_len - 2 * PGFFT_BRC_Q()) * std::size_t(log_len >= PGFFT_BRC_THRESH())
+                ),
+                scrambled_indexes(ScrambledIndexes(1 << log_reversal_len)),
+                scrambled_indexes_2(
+                    ScrambledIndexes(
+                        1L << std::min(PGFFT_BRC_Q(), log_len)
+                    )
+                ),
                 scrambled_indexes_dft(
                     ScrambledIndexes(k_N_SAMPLES_PER_OPERAND)
                 ),
                 dft_real(Dft(scrambled_indexes_dft, Cos, 1)),
-                dft_imag(Dft(scrambled_indexes_dft, Sin, -1))
+                dft_imag(Dft(scrambled_indexes_dft, Sin, -1)),
+                shuffle_work_real(transform_len),
+                shuffle_work_imag(transform_len)
             {
                     // Nothing else to do.
             }
@@ -164,8 +196,8 @@ namespace goldenrockefeller{ namespace afft{
                 Sample* signal_real, 
                 Sample* signal_imag
             ) const {
-                constexpr bool k_DFT_IS_FINAL_PHASE 
-                    = k_TRANSFORM_LEN == k_N_SAMPLES_PER_OPERAND;
+                bool dft_is_final_phase 
+                    = transform_len == k_N_SAMPLES_PER_OPERAND;
 
                 if (k_CALCULATING_INVERSE) {
                     std::swap(signal_real, signal_imag);
@@ -175,28 +207,136 @@ namespace goldenrockefeller{ namespace afft{
 
                 if (k_CALCULATING_INVERSE) {    
                     std::swap(transform_real, transform_imag);
-                    scale_factor = 1. / Sample(k_TRANSFORM_LEN);
+                    scale_factor = 1. / Sample(transform_len);
                 }
 
                 std::size_t subfft_len = 1;
-                std::size_t n_subfft_len = k_TRANSFORM_LEN;
+                std::size_t n_subfft_len = transform_len;
+
+                // std::cout << (1L << log_len) << std::endl;
+                // std::cout << transform_len << std::endl;
 
                 //--------------------------------------------------------------
                 // SCRAMBLE SIGNAL
                 //--------------------------------------------------------------
 
-                for (
-                    std::size_t new_index = 0;
-                    new_index < k_TRANSFORM_LEN; 
-                    new_index++
-                ) {
-                    auto old_index = scrambled_indexes[new_index];
+                if (log_len < PGFFT_BRC_THRESH())
+                {
+                    for (
+                        std::size_t new_index = 0;
+                        new_index < transform_len; 
+                        new_index++
+                    ) {
+                        auto old_index = scrambled_indexes[new_index];
 
-                    transform_real[new_index] 
-                        = scale_factor * signal_real[old_index];
+                        transform_real[new_index] 
+                            = scale_factor * signal_real[old_index];
 
-                    transform_imag[new_index] 
-                        = scale_factor * signal_imag[old_index];
+                        transform_imag[new_index] 
+                            = scale_factor * signal_imag[old_index];
+                    }
+                }
+                // for (
+                //     std::size_t new_index = 0;
+                //     new_index < transform_len; 
+                //     new_index++
+                // ) {
+                //     auto old_index = scrambled_indexes[new_index];
+
+                //     transform_real[new_index] 
+                //         = scale_factor * signal_real[old_index];
+
+                //     transform_imag[new_index] 
+                //         = scale_factor * signal_imag[old_index];
+                // }
+                else {
+                    // Adapted from PGFFT
+                    Sample* work_real = shuffle_work_real.data();
+                    Sample* work_imag = shuffle_work_imag.data();
+
+                    const std::size_t* rev_flex = scrambled_indexes.data();
+                    const std::size_t* rev_fixed = scrambled_indexes_2.data();
+
+                    const auto A_real = signal_real;
+                    const auto A_imag = signal_imag;
+                    auto B_real = transform_real;
+                    auto B_imag = transform_imag;
+
+                    std::size_t q = PGFFT_BRC_Q();
+                    
+                    for (
+                        std::size_t b = 0; 
+                        b < scrambled_indexes.size(); 
+                        b++
+                    ) {
+                        std::size_t b1 = rev_flex[b]; 
+                        for (
+                            std::size_t a = 0; 
+                            a < scrambled_indexes_2.size(); 
+                            a++
+                        ) {
+                            std::size_t a1 = rev_fixed[a]; 
+
+                            Sample* T_p_real = work_real + (a1 << q);
+                            Sample* T_p_imag = work_imag + (a1 << q);
+
+                            const Sample* A_p_real 
+                                = A_real 
+                                + (a << (log_reversal_len +q)) 
+                                + (b << q);
+                            
+                            const Sample* A_p_imag 
+                                = A_imag 
+                                + (a << (log_reversal_len +q)) 
+                                + (b << q);
+                    // #ifdef USE_PD4
+                    //         for (long c = 0; c < (1 << q); c += 4) {
+                    //             PD4 x0 = PD4::load(reinterpret_cast<const double*>(&A_p[c+0]));
+                    //             PD4 x1 = PD4::load(reinterpret_cast<const double*>(&A_p[c+2]));
+                    //             store(reinterpret_cast<double*>(&T_p[c+0]), x0);
+                    //             store(reinterpret_cast<double*>(&T_p[c+2]), x1);
+                    //         }
+                    // #else
+                            for (
+                                long c = 0; 
+                                c < scrambled_indexes_2.size(); 
+                                c++
+                            ) {
+                                T_p_real[c] = A_p_real[c];
+                                T_p_imag[c] = A_p_imag[c];
+                            }
+                        }
+
+                        for (
+                            long c = 0; 
+                            c < scrambled_indexes_2.size(); 
+                            c++
+                        ) {
+                            long c1 = rev_fixed[c];
+
+                            Sample* B_p_real 
+                                = B_real 
+                                + (c1 << (log_reversal_len +q)) 
+                                + (b1 << q);
+                            
+                            Sample* B_p_imag 
+                                = B_imag 
+                                + (c1 << (log_reversal_len +q)) 
+                                + (b1 << q);
+
+                            Sample* T_p_real = work_real + c;
+                            Sample* T_p_imag = work_imag + c;
+                            
+                            for (
+                                long a1 = 0; 
+                                a1 < (1l << q); 
+                                a1++
+                            ) { 
+                                B_p_real[a1] = scale_factor * T_p_real[a1 << q];
+                                B_p_imag[a1] = scale_factor * T_p_imag[a1 << q];
+                            }
+                        }
+                    }
                 }
 
                 //--------------------------------------------------------------
