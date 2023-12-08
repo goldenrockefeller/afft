@@ -1,5 +1,5 @@
 #include <iostream>
-#include "afft.hpp"
+#include "fft_complex.hpp"
 #include "spec.hpp"
 #include "pffft_double.h"
 #include "fft.h"
@@ -70,7 +70,7 @@ int main() {
         Z[k+1+transformLen] = (k / 2) & 1;  /* imag */
     }
 
-    fft.Process<false>(X, X+transformLen, Z, Z+transformLen);
+    fft.ProcessDit(X, X+transformLen, Z, Z+transformLen);
 
     /* compare output data */
     double diff = 0;
@@ -108,11 +108,11 @@ int main() {
     });
 
     bench.run("AFFT", [&]() {
-        fft.Process<false>(X, X+transformLen, Z, Z+transformLen);
+        fft.ProcessDit(X, X+transformLen, Z, Z+transformLen);
     });
 
     bench.run("AFFT Slow", [&]() {
-        fft_slow.Process<false>(X, X+transformLen, Z, Z+transformLen);
+        fft_slow.ProcessDit(X, X+transformLen, Z, Z+transformLen);
     });
 
     pffftd_aligned_free(W);
