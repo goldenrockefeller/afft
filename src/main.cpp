@@ -1,5 +1,6 @@
 #include <iostream>
 #include "fft_complex.hpp"
+#include "fft_real.hpp"
 #include "spec.hpp"
 #include "pffft_double.h"
 #include "fft.h"
@@ -17,7 +18,7 @@ struct OperandSpec{
 };
 
 int main() {
-    constexpr std::size_t transformLen = 1 << 20;
+    constexpr std::size_t transformLen = 1 << 10;
     // 256, double, double, forward
     // 512, double, double, forward
     // 32, double, AVX, forward
@@ -114,6 +115,32 @@ int main() {
     bench.run("AFFT Slow", [&]() {
         fft_slow.ProcessDit(X, X+transformLen, Z, Z+transformLen);
     });
+
+
+    //--------------------------------------------------------------------------
+
+    std::size_t signal_len = 8;
+    std::size_t spectra_len = (signal_len >> 1) + 1 ;
+    FftReal<StdSpec<double>, Double4Spec> fft_real(signal_len);
+    
+    std::vector<double> signal({1,22,3,4,1,22,3,4});
+    std::vector<double> spectra_real(spectra_len);
+    std::vector<double> spectra_imag(spectra_len);
+    std::cout << "Success" << std::endl;
+    
+    fft_real.ComputeSpectra(
+        spectra_real.data(), 
+        spectra_imag.data(), 
+        signal.data()
+    );
+
+    for (int i = 0; i < spectra_len; i++)
+    {
+        std::cout << spectra_real[i] << ", " <<  spectra_imag[i] << std::endl;
+    }
+    
+
+    std::cout << "Success" << std::endl;
 
     pffftd_aligned_free(W);
     pffftd_aligned_free(Y);
