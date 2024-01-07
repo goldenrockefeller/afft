@@ -122,25 +122,40 @@ int main() {
     std::size_t signal_len = 8;
     std::size_t spectra_len = (signal_len >> 1) + 1 ;
     FftReal<StdSpec<double>, Double4Spec> fft_real(signal_len);
-    
-    std::vector<double> signal({1,22,3,4,1,22,3,4});
-    std::vector<double> spectra_real(spectra_len);
-    std::vector<double> spectra_imag(spectra_len);
-    std::cout << "Success" << std::endl;
-    
-    fft_real.ComputeSpectra(
-        spectra_real.data(), 
-        spectra_imag.data(), 
-        signal.data()
-    );
-
-    for (int i = 0; i < spectra_len; i++)
     {
-        std::cout << spectra_real[i] << ", " <<  spectra_imag[i] << std::endl;
-    }
-    
+        std::vector<double> signal({1,22,3,4,1,22,3,4});
+        std::vector<double> spectra_real(spectra_len);
+        std::vector<double> spectra_imag(spectra_len);
+        
+        fft_real.ComputeSpectra(
+            spectra_real.data(), 
+            spectra_imag.data(), 
+            signal.data()
+        );
 
-    std::cout << "Success" << std::endl;
+        for (int i = 0; i < spectra_len; i++)
+        {
+            std::cout << spectra_real[i] << ", " <<  spectra_imag[i] << std::endl;
+        }
+    }
+
+    {
+        std::vector<double> signal(signal_len);
+        std::vector<double> spectra_real({61, 0, -5, 0, -43});
+        std::vector<double> spectra_imag({0, 1, -36, -1, 0});
+
+        fft_real.ComputeSignal(
+            signal.data(),
+            spectra_real.data(), 
+            spectra_imag.data(),
+            true
+        );
+
+        for (int i = 0; i < signal_len; i++)
+        {
+            std::cout << signal[i] << std::endl;
+        }
+    }
 
     pffftd_aligned_free(W);
     pffftd_aligned_free(Y);
