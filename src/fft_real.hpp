@@ -332,7 +332,7 @@ namespace goldenrockefeller{ namespace afft{
                 Sample* raw_combined_signal_imag 
                     = signal_real + half_signal_len;
 
-                fft_complex.ProcessDif(
+                fft_complex.ProcessDit(
                     raw_combined_signal_real,
                     raw_combined_signal_imag,
                     compact_spectra_real,
