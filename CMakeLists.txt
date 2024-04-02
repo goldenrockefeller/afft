@@ -33,6 +33,54 @@ set_target_properties(afft-run PROPERTIES
     CXX_EXTENSIONS NO 
 )  
 
+# CREATE HEADER ONLY LIBRARY
+# ---------------------------------------------------
+add_library(afft INTERFACE)
+target_include_directories(afft INTERFACE 
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)  
+
+
+# INSTALLATION 
+# ---------------------------------------------------
+
+include(GNUInstallDirs)
+
+install(
+   TARGETS afft
+   EXPORT ${PROJECT_NAME}-targets
+   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/${PROJECT_NAME}
+   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}/${PROJECT_NAME}
+)
+
+install(EXPORT ${PROJECT_NAME}-targets
+   FILE ${PROJECT_NAME}Targets.cmake
+   NAMESPACE goldenrockefeller::
+   DESTINATION ${CMAKE_INSTALL_LIBDIR}/${PROJECT_NAME}/cmake
+)
+
+install(
+  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/afft
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+include(CMakePackageConfigHelpers)
+
+write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
+                                 VERSION ${${PROJECT_NAME}_VERSION}
+                                 COMPATIBILITY SameMajorVersion)
+
+configure_package_config_file(
+      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/${PROJECT_NAME}Config.cmake.in
+      ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+      INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/${PROJECT_NAME}/cmake
+    )
+    install(FILES
+      ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+      DESTINATION ${CMAKE_INSTALL_LIBDIR}/${PROJECT_NAME}/cmake
+    )
+
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 include(CPack)
