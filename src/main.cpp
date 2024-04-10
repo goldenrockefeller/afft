@@ -18,7 +18,7 @@ struct OperandSpec{
 };
 
 int main() {
-    constexpr std::size_t transformLen = 1 << 10;
+    constexpr std::size_t transformLen = 1 << 11;
     // 256, double, double, forward
     // 512, double, double, forward
     // 32, double, AVX, forward
@@ -44,7 +44,6 @@ int main() {
     //     X[k+3] = (k / 2) & 1;  /* imag */
     // }
     
-
     std::complex<double> *x = (std::complex<double> *)X;
     std::complex<double> *y = (std::complex<double> *)Y;
 
@@ -71,7 +70,7 @@ int main() {
         Z[k+1+transformLen] = (k / 2) & 1;  /* imag */
     }
 
-    fft.ProcessDit(X, X+transformLen, Z, Z+transformLen);
+    fft.ProcessDif(X, X+transformLen, Z, Z+transformLen);
 
     /* compare output data */
     double diff = 0;
