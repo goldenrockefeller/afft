@@ -27,8 +27,8 @@ namespace goldenrockefeller{ namespace afft{
         return x - std::intmax_t(x/2) * 2;
     }
 
-    std::vector<std::size_t> ScrambledIndexes(std::size_t n_indexes) {
-        std::vector<std::size_t> scrambled_indexes(n_indexes);
+    std::vector<std::size_t> BitReversedIndexes(std::size_t n_indexes) {
+        std::vector<std::size_t> bit_reversed_indexes(n_indexes);
         std::size_t n_bits = IntLog2(n_indexes);
 
         for (
@@ -47,9 +47,9 @@ namespace goldenrockefeller{ namespace afft{
                 bit_reversed_id += work & 1;
                 work = work >> 1;
             }
-            scrambled_indexes[id] = bit_reversed_id;
+            bit_reversed_indexes[id] = bit_reversed_id;
         }
-        return scrambled_indexes;
+        return bit_reversed_indexes;
     }
 
     template<
@@ -119,9 +119,9 @@ namespace goldenrockefeller{ namespace afft{
             std::size_t log_len;
             std::size_t log_reversal_len;
 
-            std::vector<std::size_t> scrambled_indexes;
-            std::vector<std::size_t> scrambled_indexes_2;
-            std::vector<std::size_t> scrambled_indexes_dft;
+            std::vector<std::size_t> bit_reversed_indexes;
+            std::vector<std::size_t> bit_reversed_indexes_2;
+            std::vector<std::size_t> bit_reversed_indexes_dft;
 
             std::vector<std::vector<Sample>> dft_real;
             std::vector<std::vector<Sample>> dft_imag;
@@ -166,17 +166,17 @@ namespace goldenrockefeller{ namespace afft{
                     + (log_len - 2 * PGFFT_BRC_Q()) 
                     * std::size_t(log_len >= PGFFT_BRC_THRESH())
                 ),
-                scrambled_indexes(ScrambledIndexes(1 << log_reversal_len)),
-                scrambled_indexes_2(
-                    ScrambledIndexes(
+                bit_reversed_indexes(BitReversedIndexes(1 << log_reversal_len)),
+                bit_reversed_indexes_2(
+                    BitReversedIndexes(
                         1L << std::min(PGFFT_BRC_Q(), log_len)
                     )
                 ),
-                scrambled_indexes_dft(
-                    ScrambledIndexes(k_N_SAMPLES_PER_OPERAND)
+                bit_reversed_indexes_dft(
+                    BitReversedIndexes(k_N_SAMPLES_PER_OPERAND)
                 ),
-                dft_real(Dft(scrambled_indexes_dft, Cos, 1)),
-                dft_imag(Dft(scrambled_indexes_dft, Sin, -1)),
+                dft_real(Dft(bit_reversed_indexes_dft, Cos, 1)),
+                dft_imag(Dft(bit_reversed_indexes_dft, Sin, -1)),
                 dft_real_transpose(Transpose(dft_real)),
                 dft_imag_transpose(Transpose(dft_imag)),
                 shuffle_work_real(transform_len),
@@ -216,7 +216,7 @@ namespace goldenrockefeller{ namespace afft{
                             new_index < transform_len; 
                             new_index++
                         ) {
-                            auto old_index = scrambled_indexes[new_index];
+                            auto old_index = bit_reversed_indexes[new_index];
 
                             transform_real[new_index] = signal_real[old_index];
                             transform_imag[new_index] = signal_imag[old_index];
@@ -227,8 +227,8 @@ namespace goldenrockefeller{ namespace afft{
                         Sample* work_real = shuffle_work_real.data();
                         Sample* work_imag = shuffle_work_imag.data();
 
-                        const std::size_t* rev_flex = scrambled_indexes.data();
-                        const std::size_t* rev_fixed = scrambled_indexes_2.data();
+                        const std::size_t* rev_flex = bit_reversed_indexes.data();
+                        const std::size_t* rev_fixed = bit_reversed_indexes_2.data();
 
                         const auto A_real = signal_real;
                         const auto A_imag = signal_imag;
@@ -239,13 +239,13 @@ namespace goldenrockefeller{ namespace afft{
                         
                         for (
                             std::size_t b = 0; 
-                            b < scrambled_indexes.size(); 
+                            b < bit_reversed_indexes.size(); 
                             b++
                         ) {
                             std::size_t b1 = rev_flex[b]; 
                             for (
                                 std::size_t a = 0; 
-                                a < scrambled_indexes_2.size(); 
+                                a < bit_reversed_indexes_2.size(); 
                                 a++
                             ) {
                                 std::size_t a1 = rev_fixed[a]; 
@@ -265,7 +265,7 @@ namespace goldenrockefeller{ namespace afft{
                                     
                                 for (
                                     long c = 0; 
-                                    c < scrambled_indexes_2.size(); 
+                                    c < bit_reversed_indexes_2.size(); 
                                     c+=k_N_SAMPLES_PER_OPERAND
                                 ) {
                                     Operand store_real;
@@ -279,7 +279,7 @@ namespace goldenrockefeller{ namespace afft{
 
                             for (
                                 long c = 0; 
-                                c < scrambled_indexes_2.size(); 
+                                c < bit_reversed_indexes_2.size(); 
                                 c++
                             ) {
                                 long c1 = rev_fixed[c];
@@ -299,7 +299,7 @@ namespace goldenrockefeller{ namespace afft{
                                 
                                 for (
                                     long a1 = 0; 
-                                    a1 < scrambled_indexes_2.size(); 
+                                    a1 < bit_reversed_indexes_2.size(); 
                                     a1+=1
                                 ) { 
                                     B_p_real[a1] = T_p_real[a1 << q];
@@ -1382,7 +1382,7 @@ namespace goldenrockefeller{ namespace afft{
                             new_index < transform_len; 
                             new_index++
                         ) {
-                            auto old_index = scrambled_indexes[new_index];
+                            auto old_index = bit_reversed_indexes[new_index];
 
                             transform_real[new_index] 
                                 = shuffle_work_real[old_index];
@@ -1406,8 +1406,8 @@ namespace goldenrockefeller{ namespace afft{
                         Sample* work_real = shuffle_work_real.data();
                         Sample* work_imag = shuffle_work_imag.data();
 
-                        const std::size_t* rev_flex = scrambled_indexes.data();
-                        const std::size_t* rev_fixed = scrambled_indexes_2.data();
+                        const std::size_t* rev_flex = bit_reversed_indexes.data();
+                        const std::size_t* rev_fixed = bit_reversed_indexes_2.data();
 
                         const auto A_real = dif_work_real.data();
                         const auto A_imag = dif_work_imag.data();
@@ -1418,13 +1418,13 @@ namespace goldenrockefeller{ namespace afft{
                         
                         for (
                             std::size_t b = 0; 
-                            b < scrambled_indexes.size(); 
+                            b < bit_reversed_indexes.size(); 
                             b++
                         ) {
                             std::size_t b1 = rev_flex[b]; 
                             for (
                                 std::size_t a = 0; 
-                                a < scrambled_indexes_2.size(); 
+                                a < bit_reversed_indexes_2.size(); 
                                 a++
                             ) {
                                 std::size_t a1 = rev_fixed[a]; 
@@ -1444,7 +1444,7 @@ namespace goldenrockefeller{ namespace afft{
                                     
                                 for (
                                     long c = 0; 
-                                    c < scrambled_indexes_2.size(); 
+                                    c < bit_reversed_indexes_2.size(); 
                                     c+=k_N_SAMPLES_PER_OPERAND
                                 ) {
                                     Operand store_real;
@@ -1458,7 +1458,7 @@ namespace goldenrockefeller{ namespace afft{
 
                             for (
                                 long c = 0; 
-                                c < scrambled_indexes_2.size(); 
+                                c < bit_reversed_indexes_2.size(); 
                                 c++
                             ) {
                                 long c1 = rev_fixed[c];
@@ -1478,7 +1478,7 @@ namespace goldenrockefeller{ namespace afft{
                                 
                                 for (
                                     long a1 = 0; 
-                                    a1 < scrambled_indexes_2.size(); 
+                                    a1 < bit_reversed_indexes_2.size(); 
                                     a1+=1
                                 ) { 
                                     B_p_real[a1] = T_p_real[a1 << q];
@@ -1649,7 +1649,7 @@ namespace goldenrockefeller{ namespace afft{
             }
 
             static std::vector<std::vector<Sample>> Dft(
-                const std::vector<std::size_t>& the_scrambled_indexes_dft,
+                const std::vector<std::size_t>& the_bit_reversed_indexes_dft,
                 const std::function<Sample(Sample)>& trig_fn,
                 int multiplier
             ) {
@@ -1664,8 +1664,8 @@ namespace goldenrockefeller{ namespace afft{
                 ) {
                     auto& dft_basis = dft[basis_id];
                     dft_basis.resize(k_N_SAMPLES_PER_OPERAND);
-                    auto scrambled_basis_index 
-                        = the_scrambled_indexes_dft[basis_id];
+                    auto bit_reversed_basis_index 
+                        = the_bit_reversed_indexes_dft[basis_id];
 
                     for (
                         std::size_t factor_id = 0; 
@@ -1679,7 +1679,7 @@ namespace goldenrockefeller{ namespace afft{
                                 * Rem2(
                                     Sample(factor_id)
                                     * 2 
-                                    * scrambled_basis_index 
+                                    * bit_reversed_basis_index 
                                     / k_N_SAMPLES_PER_OPERAND
                                 )
                             ); 

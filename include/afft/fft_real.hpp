@@ -4,6 +4,17 @@
 #include "afft/fft_complex.hpp"
 
 namespace goldenrockefeller{ namespace afft{
+    template <typename vector_t>
+    vector_t BitReversedOrder(vector_t input){
+        auto bit_reversed_indexes = BitReversedIndexes(input.size());
+        vector_t bit_reversed_order(input.size());
+
+        for (std::size_t i = 0; i < input.size(); i++) {
+            bit_reversed_order[i] = input[bit_reversed_indexes[i]];
+        }
+
+        return bit_reversed_order;
+    }
 
     template<
         typename SampleSpec, 
@@ -56,6 +67,9 @@ namespace goldenrockefeller{ namespace afft{
             std::vector<Sample> rotor_real;
             std::vector<Sample> rotor_imag;
 
+            std::vector<Sample> rotor_bit_reversed_real;
+            std::vector<Sample> rotor_bit_reversed_imag;
+
             mutable std::vector<Sample> work_real;
             mutable std::vector<Sample> work_imag;
 
@@ -67,7 +81,9 @@ namespace goldenrockefeller{ namespace afft{
                 work_real(spectra_len),
                 work_imag(spectra_len),
                 rotor_real(Rotor(signal_len >> 1, Cos, 1)),
-                rotor_imag(Rotor(signal_len >> 1, Sin, -1))
+                rotor_imag(Rotor(signal_len >> 1, Sin, -1)),
+                rotor_bit_reversed_real(BitReversedOrder(rotor_real)),
+                rotor_bit_reversed_imag(BitReversedOrder(rotor_imag))
             {
                 // Nothing else to do.
             }
@@ -101,30 +117,39 @@ namespace goldenrockefeller{ namespace afft{
                     rescaling,
                     computing_for_convolution
                 );
-                std::cout << "A---------------"  << std::endl;
-                for(size_t i = 0; i < spectra_len; i++) {
-                    std::cout << spectra_real[i] << ", " << spectra_imag[i] << std::endl;
-                }
-                std::cout << "----------------"  << std::endl;
 
-                if (false) { // computing_for_convolution == false
                 
-                    Sample* reversed_spectra_real = work_real.data();
-                    Sample* reversed_spectra_imag = work_imag.data();
+                // Calculate Spectra
 
-                    // GET REVERSED SPECTRA
+                spectra_real[spectra_len - 1] = 
+                        spectra_real[0]
+                        - spectra_imag[0];
 
-                    auto half_spectra_len = half_signal_len >> 1;
-                    auto reversed_spectra_len = spectra_len - 1;
+                spectra_imag[spectra_len - 1] = Sample(0.); 
 
-                    reversed_spectra_real[0] = spectra_real[0];
-                    reversed_spectra_imag[0] = - spectra_imag[0];
+                Sample* reversed_spectra_real = work_real.data();
+                Sample* reversed_spectra_imag = work_imag.data();
+                Sample* rotor_variant_real;
+                Sample* rotor_variant_imag;
 
-                    reversed_spectra_real[half_spectra_len] 
-                        = spectra_real[half_spectra_len];
+                auto half_spectra_len = half_signal_len >> 1;
+                auto reversed_spectra_len = spectra_len - 1;
 
-                    reversed_spectra_imag[half_spectra_len] 
-                        = - spectra_imag[half_spectra_len];
+                reversed_spectra_real[0] = spectra_real[0];
+                reversed_spectra_imag[0] = - spectra_imag[0];
+
+                reversed_spectra_real[half_spectra_len] 
+                    = spectra_real[half_spectra_len];
+
+                reversed_spectra_imag[half_spectra_len] 
+                    = - spectra_imag[half_spectra_len];
+            
+                // GET REVERSED SPECTRA
+
+                if (computing_for_convolution == false) { 
+                    rotor_variant_real = rotor_real.data();
+                    rotor_variant_imag = rotor_imag.data();
+
                     for (
                         std::size_t i = 1;
                         i < (half_spectra_len);
@@ -142,84 +167,90 @@ namespace goldenrockefeller{ namespace afft{
                         reversed_spectra_imag[reversed_spectra_len - i]
                             = - spectra_imag[i];
                     }
+                }
+                else {
+                    rotor_variant_real = rotor_bit_reversed_real.data();
+                    rotor_variant_imag = rotor_bit_reversed_imag.data();
 
-                    // Calculate Spectra
+                    reversed_spectra_real[1] =  spectra_real[1];
+                    reversed_spectra_imag[1] =  - spectra_imag[1];
 
-                    spectra_real[spectra_len - 1] = 
-                            spectra_real[0]
-                            - spectra_imag[0];
+                    std::size_t start_id = 2;
+                    std::size_t section_len = 2;
 
-                    spectra_imag[spectra_len - 1] = Sample(0.); 
-                    
-                    Operand half(0.5);
-                    for (
-                        std::size_t i = 0;
-                        i < reversed_spectra_len;
-                        i += k_N_SAMPLES_PER_OPERAND
-                    ) {
-                        Operand spectra_operand_real;
-                        Operand rspectra_operand_real;
-                        Operand rotor_operand_real;
-
-                        Operand spectra_operand_imag;
-                        Operand rspectra_operand_imag;
-                        Operand rotor_operand_imag;   
-
-                        Load(spectra_real + i, spectra_operand_real);
-                        Load(reversed_spectra_real + i, rspectra_operand_real);
-                        Load(rotor_real.data() + i, rotor_operand_real);  
-
-                        Load(spectra_imag + i, spectra_operand_imag);
-                        Load(reversed_spectra_imag + i, rspectra_operand_imag);
-                        Load(rotor_imag.data() + i, rotor_operand_imag);                  
-
-                        Operand difference_operand_real
-                            = spectra_operand_real - rspectra_operand_real;
-
-                        Operand difference_operand_imag
-                            = spectra_operand_imag - rspectra_operand_imag;
-
-                        Operand rotated_operand_real
-                            = -difference_operand_real * rotor_operand_imag
-                            - difference_operand_imag * rotor_operand_real;
-
-                        Operand rotated_operand_imag
-                            = difference_operand_real * rotor_operand_real
-                            - difference_operand_imag * rotor_operand_imag;
-                        
-                        spectra_operand_real  = 
-                            half * (
-                                spectra_operand_real 
-                                + rspectra_operand_real
-                                - rotated_operand_real
-                            );
-
-                        spectra_operand_imag  = 
-                            half * (
-                                spectra_operand_imag 
-                                + rspectra_operand_imag
-                                - rotated_operand_imag
-                            );
-
-                        Store(spectra_real + i, spectra_operand_real); 
-                        Store(spectra_imag + i, spectra_operand_imag); 
+                    while (start_id < half_signal_len) {
+                        auto a = start_id;
+                        auto b = start_id + section_len - 1;
+                        for (
+                            std::size_t i = 0;
+                            i < section_len;
+                            i++
+                        ) {
+                            reversed_spectra_real[a] =  spectra_real[b];
+                            reversed_spectra_imag[a] =  -spectra_imag[b];
+                            a += 1;
+                            b -= 1;
+                        }
+                        start_id += section_len;
+                        section_len = section_len << 1;
                     }
                 }
-                // else{
-                //     spectra_real[spectra_len - 1] = 
-                //             spectra_real[0]
-                //             - spectra_imag[0];
 
-                //     spectra_imag[spectra_len - 1] = Sample(0.); 
+                Operand half(0.5);
+                for (
+                    std::size_t i = 0;
+                    i < reversed_spectra_len;
+                    i += k_N_SAMPLES_PER_OPERAND
+                ) {
+                    Operand spectra_operand_real;
+                    Operand rspectra_operand_real;
+                    Operand rotor_operand_real;
 
-                //     spectra_real[0] = 
-                //             spectra_real[0]
-                //             + spectra_imag[0];
+                    Operand spectra_operand_imag;
+                    Operand rspectra_operand_imag;
+                    Operand rotor_operand_imag;   
 
-                //     spectra_imag[0] = Sample(0.); 
-                // }
+                    Load(spectra_real + i, spectra_operand_real);
+                    Load(reversed_spectra_real + i, rspectra_operand_real);
+                    Load(rotor_variant_real + i, rotor_operand_real);  
+
+                    Load(spectra_imag + i, spectra_operand_imag);
+                    Load(reversed_spectra_imag + i, rspectra_operand_imag);
+                    Load(rotor_variant_imag + i, rotor_operand_imag);                  
+
+                    Operand difference_operand_real
+                        = spectra_operand_real - rspectra_operand_real;
+
+                    Operand difference_operand_imag
+                        = spectra_operand_imag - rspectra_operand_imag;
+
+                    Operand rotated_operand_real
+                        = -difference_operand_real * rotor_operand_imag
+                        - difference_operand_imag * rotor_operand_real;
+
+                    Operand rotated_operand_imag
+                        = difference_operand_real * rotor_operand_real
+                        - difference_operand_imag * rotor_operand_imag;
+                    
+                    spectra_operand_real  = 
+                        half * (
+                            spectra_operand_real 
+                            + rspectra_operand_real
+                            - rotated_operand_real
+                        );
+
+                    spectra_operand_imag  = 
+                        half * (
+                            spectra_operand_imag 
+                            + rspectra_operand_imag
+                            - rotated_operand_imag
+                        );
+
+                    Store(spectra_real + i, spectra_operand_real); 
+                    Store(spectra_imag + i, spectra_operand_imag); 
+                }
             }
-
+            
             void ComputeSignal (                
                 Sample* signal_real, 
                 Sample* spectra_real, 
@@ -233,31 +264,37 @@ namespace goldenrockefeller{ namespace afft{
                 Sample* compact_spectra_real = spectra_real;
                 Sample* compact_spectra_imag = spectra_imag;
 
-                if (false) { //computing_for_convolution == false
-                    // Put spectra in compact form (zero and nyquist frequencies are
-                    // stored in the first value). 
-                    spectra_real[0] 
-                        = Sample(0.5) * (ampl_at_zero + ampl_at_nyquist);
+                // Put spectra in compact form (zero and nyquist frequencies are
+                // stored in the first value). 
+                spectra_real[0] 
+                    = Sample(0.5) * (ampl_at_zero + ampl_at_nyquist);
 
-                    spectra_imag[0] 
-                        = Sample(0.5) * (ampl_at_zero - ampl_at_nyquist);
+                spectra_imag[0] 
+                    = Sample(0.5) * (ampl_at_zero - ampl_at_nyquist);
 
-                    Sample* reversed_spectra_real = work_real.data();
-                    Sample* reversed_spectra_imag = work_imag.data();
+                Sample* reversed_spectra_real = work_real.data();
+                Sample* reversed_spectra_imag = work_imag.data();
+                Sample* rotor_variant_real;
+                Sample* rotor_variant_imag;
 
-                    // GET REVERSED SPECTRA
+                auto half_signal_len = signal_len >> 1;
+                auto half_spectra_len = signal_len >> 2;
+                auto reversed_spectra_len = spectra_len - 1;
 
-                    auto half_spectra_len = signal_len >> 2;
-                    auto reversed_spectra_len = spectra_len - 1;
+                reversed_spectra_real[0] = spectra_real[0];
+                reversed_spectra_imag[0] = - spectra_imag[0];
 
-                    reversed_spectra_real[0] = spectra_real[0];
-                    reversed_spectra_imag[0] = - spectra_imag[0];
+                reversed_spectra_real[half_spectra_len] 
+                    = spectra_real[half_spectra_len];
 
-                    reversed_spectra_real[half_spectra_len] 
-                        = spectra_real[half_spectra_len];
+                reversed_spectra_imag[half_spectra_len] 
+                    = - spectra_imag[half_spectra_len];
 
-                    reversed_spectra_imag[half_spectra_len] 
-                        = - spectra_imag[half_spectra_len];
+                // GET REVERSED SPECTRA
+
+                if (computing_for_convolution == false) { 
+                    rotor_variant_real = rotor_real.data();
+                    rotor_variant_imag = rotor_imag.data();
 
                     for (
                         std::size_t i = 1;
@@ -276,79 +313,100 @@ namespace goldenrockefeller{ namespace afft{
                         reversed_spectra_imag[reversed_spectra_len - i]
                             = - spectra_imag[i];
                     }
+                } else {
+                    rotor_variant_real = rotor_bit_reversed_real.data();
+                    rotor_variant_imag = rotor_bit_reversed_imag.data();
 
-                    Operand half(0.5);
+                    reversed_spectra_real[1] =  spectra_real[1];
+                    reversed_spectra_imag[1] =  -spectra_imag[1];
 
-                    compact_spectra_real = work_real.data();
-                    compact_spectra_imag = work_imag.data();
+                    std::size_t start_id = 2;
+                    std::size_t section_len = 2;
 
-                    for (
-                        std::size_t i = 0;
-                        i < reversed_spectra_len;
-                        i += k_N_SAMPLES_PER_OPERAND
-                    ) {
-                        Operand spectra_operand_real;
-                        Operand rspectra_operand_real;
-                        Operand rotor_operand_real;
-
-                        Operand spectra_operand_imag;
-                        Operand rspectra_operand_imag;
-                        Operand rotor_operand_imag;   
-
-                        Load(spectra_real + i, spectra_operand_real);
-                        Load(reversed_spectra_real + i, rspectra_operand_real);
-                        Load(rotor_real.data() + i, rotor_operand_real);  
-
-                        Load(spectra_imag + i, spectra_operand_imag);
-                        Load(reversed_spectra_imag + i, rspectra_operand_imag);
-                        Load(rotor_imag.data() + i, rotor_operand_imag);                  
-
-                        Operand difference_operand_real
-                            = spectra_operand_real - rspectra_operand_real;
-
-                        Operand difference_operand_imag
-                            = spectra_operand_imag - rspectra_operand_imag;
-
-                        Operand rotated_operand_real
-                            = difference_operand_real * rotor_operand_imag
-                            - difference_operand_imag * rotor_operand_real;
-
-                        Operand rotated_operand_imag
-                            = difference_operand_real * rotor_operand_real
-                            + difference_operand_imag * rotor_operand_imag;
-                        
-                        spectra_operand_real  = 
-                            half * (
-                                spectra_operand_real 
-                                + rspectra_operand_real
-                                + rotated_operand_real
-                            );
-
-                        spectra_operand_imag  = 
-                            half * (
-                                spectra_operand_imag 
-                                + rspectra_operand_imag
-                                + rotated_operand_imag
-                            );
-
-                        Store(compact_spectra_real + i, spectra_operand_real); 
-                        Store(compact_spectra_imag + i, spectra_operand_imag); 
+                    while (start_id < half_signal_len) {
+                        auto half_section_len = section_len >> 1;
+                        auto a = start_id;
+                        auto b = start_id + section_len - 1;
+                        for (
+                            std::size_t i = 0;
+                            i < half_section_len;
+                            i++
+                        ) {
+                            reversed_spectra_real[a] =  spectra_real[b];
+                            reversed_spectra_imag[a] =  -spectra_imag[b];
+                            reversed_spectra_real[b] =  spectra_real[a];
+                            reversed_spectra_imag[b] =  -spectra_imag[a];
+                            a += 1;
+                            b -= 1;
+                        }
+                        start_id += section_len;
+                        section_len = section_len << 1;
                     }
-
-                    compact_spectra_real[0] 
-                        = Sample(0.5) * (ampl_at_zero + ampl_at_nyquist);
-
-                    compact_spectra_imag[0] 
-                        = Sample(0.5) * (ampl_at_zero - ampl_at_nyquist);
                 }
 
-                std::cout << "B---------------"  << std::endl;
-                for(size_t i = 0; i < spectra_len; i++) {
-                    std::cout << compact_spectra_real[i] << ", " << compact_spectra_imag[i] << std::endl;
-                }
-                std::cout << "----------------"  << std::endl;
+                Operand half(0.5);
 
-                auto half_signal_len = signal_len >> 1;
+                compact_spectra_real = work_real.data();
+                compact_spectra_imag = work_imag.data();
+
+                for (
+                    std::size_t i = 0;
+                    i < reversed_spectra_len;
+                    i += k_N_SAMPLES_PER_OPERAND
+                ) {
+                    Operand spectra_operand_real;
+                    Operand rspectra_operand_real;
+                    Operand rotor_operand_real;
+
+                    Operand spectra_operand_imag;
+                    Operand rspectra_operand_imag;
+                    Operand rotor_operand_imag;   
+
+                    Load(spectra_real + i, spectra_operand_real);
+                    Load(reversed_spectra_real + i, rspectra_operand_real);
+                    Load(rotor_variant_real + i, rotor_operand_real);  
+
+                    Load(spectra_imag + i, spectra_operand_imag);
+                    Load(reversed_spectra_imag + i, rspectra_operand_imag);
+                    Load(rotor_variant_imag + i, rotor_operand_imag);                  
+
+                    Operand difference_operand_real
+                        = spectra_operand_real - rspectra_operand_real;
+
+                    Operand difference_operand_imag
+                        = spectra_operand_imag - rspectra_operand_imag;
+
+                    Operand rotated_operand_real
+                        = difference_operand_real * rotor_operand_imag
+                        - difference_operand_imag * rotor_operand_real;
+
+                    Operand rotated_operand_imag
+                        = difference_operand_real * rotor_operand_real
+                        + difference_operand_imag * rotor_operand_imag;
+                    
+                    spectra_operand_real  = 
+                        half * (
+                            spectra_operand_real 
+                            + rspectra_operand_real
+                            + rotated_operand_real
+                        );
+
+                    spectra_operand_imag  = 
+                        half * (
+                            spectra_operand_imag 
+                            + rspectra_operand_imag
+                            + rotated_operand_imag
+                        );
+
+                    Store(compact_spectra_real + i, spectra_operand_real); 
+                    Store(compact_spectra_imag + i, spectra_operand_imag); 
+                }
+
+                compact_spectra_real[0] 
+                    = Sample(0.5) * (ampl_at_zero + ampl_at_nyquist);
+
+                compact_spectra_imag[0] 
+                    = Sample(0.5) * (ampl_at_zero - ampl_at_nyquist);
 
                 Sample* raw_combined_signal_real = signal_real;
                 Sample* raw_combined_signal_imag 

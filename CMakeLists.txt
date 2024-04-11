@@ -7,6 +7,7 @@ enable_testing()
 find_package(pffft REQUIRED) 
 find_package(muFFT REQUIRED)  
 find_package(xsimd REQUIRED)  
+find_package(IPP REQUIRED)
 
 get_target_property(pffft_INCLUDE_DIRS PFFFT INTERFACE_INCLUDE_DIRECTORIES)
 get_target_property(mufft_INCLUDE_DIRS muFFT INTERFACE_INCLUDE_DIRECTORIES)
@@ -18,7 +19,15 @@ get_target_property(nanobench_INCLUDE_DIRS nanobench::nanobench INTERFACE_INCLUD
 # add_library(pocketfft src/pocketfft.c)
 add_executable(afft-run src/main.cpp src/PGFFT.cpp)
 
-target_link_libraries(afft-run PRIVATE C:/Users/white/OneDrive/Documents/Workspace/afft/src/kissfft-double.lib)
+target_link_libraries(
+   afft-run 
+      PRIVATE 
+   C:/Users/white/OneDrive/Documents/Workspace/afft/src/kissfft-double.lib
+   IPP::ippcore 
+   IPP::ipps 
+   IPP::ippi 
+   IPP::ippcv
+)
  
 target_compile_options(afft-run PUBLIC /W2  /arch:AVX2 /fp:fast /EHsc /permissive-)
 target_include_directories(

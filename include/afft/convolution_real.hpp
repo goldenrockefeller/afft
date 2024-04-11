@@ -52,20 +52,16 @@ namespace goldenrockefeller{ namespace afft{
         void ComputeConvolution (
             Sample* convolution,
             Sample* signal_a,
-            Sample* signal_b
+            Sample* signal_b,
+            bool fast = false
         ) {
             fft_real.ComputeSpectra(
                 spectra_a_real.data(),
                 spectra_a_imag.data(),
                 signal_a,
                 false, /*rescaling*/
-                true /*computing for convolution*/
+                fast /*computing for convolution*/
             );
-            // std::cout << "----------------"  << std::endl;
-            // for(size_t i = 0; i < spectra_len; i++) {
-            //     std::cout << spectra_a_real[i] << ", " << spectra_a_imag[i] << std::endl;
-            // }
-            // std::cout << "----------------"  << std::endl;
 
 
             fft_real.ComputeSpectra(
@@ -73,7 +69,7 @@ namespace goldenrockefeller{ namespace afft{
                 spectra_b_imag.data(),
                 signal_b,
                 false, /*rescaling*/
-                true /*computing for convolution*/
+                fast /*computing for convolution*/
             );
 
             size_t half_signal_len = signal_len >> 1;
@@ -130,7 +126,7 @@ namespace goldenrockefeller{ namespace afft{
                 spectra_a_real.data(), 
                 spectra_a_imag.data(),
                 true, /*rescaling*/
-                true /*compute for convolution*/
+                fast /*compute for convolution*/
             );
         }
     };

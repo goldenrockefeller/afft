@@ -8,7 +8,7 @@
 #include "PGFFT.h"
 #include "kiss_fft.h"
 #include "nanobench.h"
-
+#include "ipp.h"
 
 using namespace std;
 using namespace goldenrockefeller::afft;
@@ -19,7 +19,7 @@ struct OperandSpec{
 };
 
 int main() {
-    constexpr std::size_t transformLen = 1 << 11;
+    constexpr std::size_t transformLen = 1 << 22;
     // 256, double, double, forward
     // 512, double, double, forward
     // 32, double, AVX, forward
@@ -88,33 +88,67 @@ int main() {
 
     cout << PGFFT::simd_enabled() << endl;
 
+    int N = transformLen;
+    const int order=(int)(std::log((double)N)/std::log(2.0));
+
+    // Spec and working buffers
+    IppsFFTSpec_C_64fc *pFFTSpec=0;
+    Ipp8u *pFFTSpecBuf, *pFFTInitBuf, *pFFTWorkBuf;
+
+    // Allocate complex buffers
+    Ipp64fc *pSrc=ippsMalloc_64fc(N);
+    Ipp64fc *pDst=ippsMalloc_64fc(N); 
+
+    // Query to get buffer sizes
+    int sizeFFTSpec,sizeFFTInitBuf,sizeFFTWorkBuf;
+    ippsFFTGetSize_C_64fc(order, IPP_FFT_NODIV_BY_ANY, 
+        ippAlgHintAccurate, &sizeFFTSpec, &sizeFFTInitBuf, &sizeFFTWorkBuf);
+
+    // Alloc FFT buffers
+    pFFTSpecBuf = ippsMalloc_8u(sizeFFTSpec);
+    pFFTInitBuf = ippsMalloc_8u(sizeFFTInitBuf);
+    pFFTWorkBuf = ippsMalloc_8u(sizeFFTWorkBuf);
+
+    // Initialize FFT
+    ippsFFTInit_C_64fc(&pFFTSpec, order, IPP_FFT_NODIV_BY_ANY, 
+        ippAlgHintAccurate, pFFTSpecBuf, pFFTInitBuf);
+    if (pFFTInitBuf) ippFree(pFFTInitBuf);
+
+    // Do the FFT
     
-    ankerl::nanobench::Bench bench;
-    ostringstream title_stream;
-    title_stream << "Size: " << transformLen;
-    bench.title(title_stream.str());
 
-    bench.minEpochIterations(10);
+    {
+        ankerl::nanobench::Bench bench;
+        ostringstream title_stream;
+        title_stream << "Size: " << transformLen;
+        bench.title(title_stream.str());
 
-    bench.run("Kiss", [&]() {
-        kiss_fft( cfg , (kiss_fft_cpx*) x ,  (kiss_fft_cpx*) y );
-    });
+        bench.minEpochIterations(10);
 
-    bench.run("PGFFT", [&]() {
-        pgfft.apply(x,  y);
-    });
+        bench.run("Kiss", [&]() {
+            kiss_fft( cfg , (kiss_fft_cpx*) x ,  (kiss_fft_cpx*) y );
+        });
 
-    bench.run("PFFFT", [&]() {
-        pffftd_transform(ffts, (double*) x,  (double*) y, W, PFFFT_FORWARD);
-    });
+        bench.run("PGFFT", [&]() {
+            pgfft.apply(x,  y);
+        });
 
-    bench.run("AFFT", [&]() {
-        fft.ProcessDit(X, X+transformLen, Z, Z+transformLen);
-    });
+        bench.run("PFFFT", [&]() {
+            pffftd_transform(ffts, (double*) x,  (double*) y, W, PFFFT_FORWARD);
+        });
 
-    bench.run("AFFT Slow", [&]() {
-        fft_slow.ProcessDit(X, X+transformLen, Z, Z+transformLen);
-    });
+        bench.run("AFFT", [&]() {
+            fft.ProcessDit(X, X+transformLen, Z, Z+transformLen, false, false);
+        });
+
+        bench.run("AFFT Slow", [&]() {
+            fft_slow.ProcessDit(X, X+transformLen, Z, Z+transformLen);
+        });
+
+        bench.run("Ipp", [&]() {
+            ippsFFTFwd_CToC_64fc(pSrc,pDst,pFFTSpec,pFFTWorkBuf);
+        });
+    }
 
 
     //--------------------------------------------------------------------------
@@ -157,22 +191,56 @@ int main() {
     }
 
     // -------------------------------------------------------------------------
-    std::cout << "Convolution:" << std::endl;
-    std::size_t signal_len_conv = 8;
-    ConvolutionReal<StdSpec<double>, Double4Spec> conv(signal_len_conv);
+
     {
+        std::cout << "Convolution:" << std::endl;
+        std::size_t signal_len_conv = 8;
+        ConvolutionReal<StdSpec<double>, Double4Spec> conv(signal_len_conv);
         std::vector<double> signal({1,1,1,1,0,0,0,0});
         std::vector<double> signal_b({1,1,0,0,0,0,0,0});
         std::vector<double> signal_auto_conv(signal_len_conv);
         conv.ComputeConvolution(
             signal_auto_conv.data(),
             signal.data(),
-            signal_b.data()
+            signal_b.data(),
+            true
         );
         for (int i = 0; i < signal_len_conv; i++)
         {
             std::cout << signal_auto_conv[i] << std::endl;
         }
+    }
+
+    {
+        ConvolutionReal<StdSpec<double>, Double4Spec> conv(transformLen);
+        std::vector<double> signal(transformLen);
+        std::vector<double> signal_b(transformLen);
+        std::vector<double> signal_auto_conv(transformLen);
+
+        ankerl::nanobench::Bench bench;
+        ostringstream title_stream;
+        title_stream << "Convolution: " << transformLen;
+        bench.title(title_stream.str());
+
+        bench.minEpochIterations(10);
+
+        bench.run("Fast Convol", [&]() {
+            conv.ComputeConvolution(
+                signal_auto_conv.data(),
+                signal.data(),
+                signal_b.data(),
+                true
+            );
+        });
+
+        bench.run("Slow Convol", [&]() {
+            conv.ComputeConvolution(
+                signal_auto_conv.data(),
+                signal.data(),
+                signal_b.data(),
+                false
+            );
+        });
     }
 
     pffftd_aligned_free(W);
