@@ -1,7 +1,7 @@
 #ifndef GOLDENROCEKEFELLER_AFFT_FFT_REAL_HPP
 #define GOLDENROCEKEFELLER_AFFT_FFT_REAL_HPP
 
-#include "fft_complex.hpp"
+#include "afft/fft_complex.hpp"
 
 namespace goldenrockefeller{ namespace afft{
 
@@ -102,7 +102,10 @@ namespace goldenrockefeller{ namespace afft{
                     computing_for_convolution
                 );
 
+                
+                
                 if (computing_for_convolution == false) {
+                
                     Sample* reversed_spectra_real = work_real.data();
                     Sample* reversed_spectra_imag = work_imag.data();
 
@@ -119,7 +122,6 @@ namespace goldenrockefeller{ namespace afft{
 
                     reversed_spectra_imag[half_spectra_len] 
                         = - spectra_imag[half_spectra_len];
-
                     for (
                         std::size_t i = 1;
                         i < (half_spectra_len);
@@ -145,9 +147,8 @@ namespace goldenrockefeller{ namespace afft{
                             - spectra_imag[0];
 
                     spectra_imag[spectra_len - 1] = Sample(0.); 
-
+                    
                     Operand half(0.5);
-
                     for (
                         std::size_t i = 0;
                         i < reversed_spectra_len;
@@ -200,6 +201,19 @@ namespace goldenrockefeller{ namespace afft{
                         Store(spectra_real + i, spectra_operand_real); 
                         Store(spectra_imag + i, spectra_operand_imag); 
                     }
+                }
+                else{
+                    spectra_real[spectra_len - 1] = 
+                            spectra_real[0]
+                            - spectra_imag[0];
+
+                    spectra_imag[spectra_len - 1] = Sample(0.); 
+
+                    spectra_real[0] = 
+                            spectra_real[0]
+                            + spectra_imag[0];
+
+                    spectra_imag[0] = Sample(0.); 
                 }
             }
 

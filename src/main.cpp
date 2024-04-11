@@ -1,7 +1,8 @@
 #include <iostream>
-#include "fft_complex.hpp"
-#include "fft_real.hpp"
-#include "spec.hpp"
+#include "afft/fft_complex.hpp"
+#include "afft/fft_real.hpp"
+#include "afft/spec.hpp"
+#include "afft/convolution_real.hpp"
 #include "pffft_double.h"
 #include "fft.h"
 #include "PGFFT.h"
@@ -153,6 +154,39 @@ int main() {
         for (int i = 0; i < signal_len; i++)
         {
             std::cout << signal[i] << std::endl;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    std::cout << "Convolution:" << std::endl;
+    std::size_t signal_len_conv = 8;
+    ConvolutionReal<StdSpec<double>, Double4Spec> conv(signal_len_conv);
+    {
+        std::vector<double> signal({1,22,3,4,1,22,3,4});
+        std::vector<double> signal_auto_conv(signal_len_conv);
+        conv.ComputeConvolution(
+            signal_auto_conv.data(),
+            signal.data(),
+            signal.data(),
+            true
+        );
+        for (int i = 0; i < signal_len_conv; i++)
+        {
+            std::cout << signal_auto_conv[i] << ", " <<  signal_auto_conv[i] << std::endl;
+        }
+    }
+    {
+        std::vector<double> signal({1,22,3,4,1,22,3,4});
+        std::vector<double> signal_auto_conv(signal_len_conv);
+        conv.ComputeConvolution(
+            signal_auto_conv.data(),
+            signal.data(),
+            signal.data(),
+            false
+        );
+        for (int i = 0; i < signal_len_conv; i++)
+        {
+            std::cout << signal_auto_conv[i] << ", " <<  signal_auto_conv[i] << std::endl;
         }
     }
 

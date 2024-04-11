@@ -21,9 +21,14 @@ add_executable(afft-run src/main.cpp src/PGFFT.cpp)
 target_link_libraries(afft-run PRIVATE C:/Users/white/OneDrive/Documents/Workspace/afft/src/kissfft-double.lib)
  
 target_compile_options(afft-run PUBLIC /W2  /arch:AVX2 /fp:fast /EHsc /permissive-)
-target_include_directories(afft-run PUBLIC ${pffft_INCLUDE_DIRS} ${nanobench_INCLUDE_DIRS})
-target_include_directories(afft-run PUBLIC ${mufft_INCLUDE_DIRS})
-target_include_directories(afft-run PUBLIC ${xsimd_INCLUDE_DIRS})
+target_include_directories(
+      afft-run 
+   PUBLIC 
+      ${CMAKE_CURRENT_SOURCE_DIR}//include
+      ${pffft_INCLUDE_DIRS} 
+      ${nanobench_INCLUDE_DIRS}
+      ${mufft_INCLUDE_DIRS}
+      ${xsimd_INCLUDE_DIRS})
 
 target_link_libraries(afft-run PRIVATE PFFFT muFFT nanobench::nanobench)
 
