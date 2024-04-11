@@ -101,10 +101,13 @@ namespace goldenrockefeller{ namespace afft{
                     rescaling,
                     computing_for_convolution
                 );
+                std::cout << "A---------------"  << std::endl;
+                for(size_t i = 0; i < spectra_len; i++) {
+                    std::cout << spectra_real[i] << ", " << spectra_imag[i] << std::endl;
+                }
+                std::cout << "----------------"  << std::endl;
 
-                
-                
-                if (computing_for_convolution == false) {
+                if (false) { // computing_for_convolution == false
                 
                     Sample* reversed_spectra_real = work_real.data();
                     Sample* reversed_spectra_imag = work_imag.data();
@@ -202,19 +205,19 @@ namespace goldenrockefeller{ namespace afft{
                         Store(spectra_imag + i, spectra_operand_imag); 
                     }
                 }
-                else{
-                    spectra_real[spectra_len - 1] = 
-                            spectra_real[0]
-                            - spectra_imag[0];
+                // else{
+                //     spectra_real[spectra_len - 1] = 
+                //             spectra_real[0]
+                //             - spectra_imag[0];
 
-                    spectra_imag[spectra_len - 1] = Sample(0.); 
+                //     spectra_imag[spectra_len - 1] = Sample(0.); 
 
-                    spectra_real[0] = 
-                            spectra_real[0]
-                            + spectra_imag[0];
+                //     spectra_real[0] = 
+                //             spectra_real[0]
+                //             + spectra_imag[0];
 
-                    spectra_imag[0] = Sample(0.); 
-                }
+                //     spectra_imag[0] = Sample(0.); 
+                // }
             }
 
             void ComputeSignal (                
@@ -230,15 +233,14 @@ namespace goldenrockefeller{ namespace afft{
                 Sample* compact_spectra_real = spectra_real;
                 Sample* compact_spectra_imag = spectra_imag;
 
-                // Put spectra in compact form (zero and nyquist frequencies are
-                // stored in the first value). 
-                spectra_real[0] 
-                    = Sample(0.5) * (ampl_at_zero + ampl_at_nyquist);
+                if (false) { //computing_for_convolution == false
+                    // Put spectra in compact form (zero and nyquist frequencies are
+                    // stored in the first value). 
+                    spectra_real[0] 
+                        = Sample(0.5) * (ampl_at_zero + ampl_at_nyquist);
 
-                spectra_imag[0] 
-                    = Sample(0.5) * (ampl_at_zero - ampl_at_nyquist);
-
-                if (computing_for_convolution == false) {
+                    spectra_imag[0] 
+                        = Sample(0.5) * (ampl_at_zero - ampl_at_nyquist);
 
                     Sample* reversed_spectra_real = work_real.data();
                     Sample* reversed_spectra_imag = work_imag.data();
@@ -339,6 +341,12 @@ namespace goldenrockefeller{ namespace afft{
                     compact_spectra_imag[0] 
                         = Sample(0.5) * (ampl_at_zero - ampl_at_nyquist);
                 }
+
+                std::cout << "B---------------"  << std::endl;
+                for(size_t i = 0; i < spectra_len; i++) {
+                    std::cout << compact_spectra_real[i] << ", " << compact_spectra_imag[i] << std::endl;
+                }
+                std::cout << "----------------"  << std::endl;
 
                 auto half_signal_len = signal_len >> 1;
 

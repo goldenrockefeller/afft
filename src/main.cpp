@@ -147,8 +147,7 @@ int main() {
         fft_real.ComputeSignal(
             signal.data(),
             spectra_real.data(), 
-            spectra_imag.data(),
-            true
+            spectra_imag.data()
         );
 
         for (int i = 0; i < signal_len; i++)
@@ -162,31 +161,17 @@ int main() {
     std::size_t signal_len_conv = 8;
     ConvolutionReal<StdSpec<double>, Double4Spec> conv(signal_len_conv);
     {
-        std::vector<double> signal({1,22,3,4,1,22,3,4});
+        std::vector<double> signal({1,1,1,1,0,0,0,0});
+        std::vector<double> signal_b({1,1,0,0,0,0,0,0});
         std::vector<double> signal_auto_conv(signal_len_conv);
         conv.ComputeConvolution(
             signal_auto_conv.data(),
             signal.data(),
-            signal.data(),
-            true
+            signal_b.data()
         );
         for (int i = 0; i < signal_len_conv; i++)
         {
-            std::cout << signal_auto_conv[i] << ", " <<  signal_auto_conv[i] << std::endl;
-        }
-    }
-    {
-        std::vector<double> signal({1,22,3,4,1,22,3,4});
-        std::vector<double> signal_auto_conv(signal_len_conv);
-        conv.ComputeConvolution(
-            signal_auto_conv.data(),
-            signal.data(),
-            signal.data(),
-            false
-        );
-        for (int i = 0; i < signal_len_conv; i++)
-        {
-            std::cout << signal_auto_conv[i] << ", " <<  signal_auto_conv[i] << std::endl;
+            std::cout << signal_auto_conv[i] << std::endl;
         }
     }
 
