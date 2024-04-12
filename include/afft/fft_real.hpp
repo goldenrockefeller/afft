@@ -173,21 +173,24 @@ namespace goldenrockefeller{ namespace afft{
                     rotor_variant_imag = rotor_bit_reversed_imag.data();
 
                     reversed_spectra_real[1] =  spectra_real[1];
-                    reversed_spectra_imag[1] =  - spectra_imag[1];
+                    reversed_spectra_imag[1] =  -spectra_imag[1];
 
                     std::size_t start_id = 2;
                     std::size_t section_len = 2;
 
                     while (start_id < half_signal_len) {
+                        auto half_section_len = section_len >> 1;
                         auto a = start_id;
                         auto b = start_id + section_len - 1;
                         for (
                             std::size_t i = 0;
-                            i < section_len;
+                            i < half_section_len;
                             i++
                         ) {
                             reversed_spectra_real[a] =  spectra_real[b];
                             reversed_spectra_imag[a] =  -spectra_imag[b];
+                            reversed_spectra_real[b] =  spectra_real[a];
+                            reversed_spectra_imag[b] =  -spectra_imag[a];
                             a += 1;
                             b -= 1;
                         }

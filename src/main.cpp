@@ -138,7 +138,7 @@ int main() {
         });
 
         bench.run("AFFT", [&]() {
-            fft.ProcessDit(X, X+transformLen, Z, Z+transformLen, false, false);
+            fft.ProcessDit(X, X+transformLen, Z, Z+transformLen);
         });
 
         bench.run("AFFT Slow", [&]() {
