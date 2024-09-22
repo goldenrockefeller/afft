@@ -9,6 +9,7 @@
 #include "kiss_fft.h"
 #include "nanobench.h"
 #include "ipp.h"
+#include <sstream>
 
 using namespace std;
 using namespace goldenrockefeller::afft;
@@ -19,7 +20,7 @@ struct OperandSpec{
 };
 
 int main() {
-    constexpr std::size_t transformLen = 1 << 22;
+    constexpr std::size_t transformLen = 1 << 17;
     // 256, double, double, forward
     // 512, double, double, forward
     // 32, double, AVX, forward
@@ -71,7 +72,7 @@ int main() {
         Z[k+1+transformLen] = (k / 2) & 1;  /* imag */
     }
 
-    fft.ProcessDif(X, X+transformLen, Z, Z+transformLen);
+    fft.ProcessDit(X, X+transformLen, Z, Z+transformLen);
 
     /* compare output data */
     double diff = 0;
@@ -125,9 +126,12 @@ int main() {
 
         bench.minEpochIterations(10);
 
-        bench.run("Kiss", [&]() {
-            kiss_fft( cfg , (kiss_fft_cpx*) x ,  (kiss_fft_cpx*) y );
-        });
+        auto XX = std::vector<double, xsimd::aligned_allocator<double, 128>>(transformLen * 2);
+        auto ZZ =std::vector<double, xsimd::aligned_allocator<double, 128>>(transformLen * 2);
+
+        // bench.run("Kiss", [&]() {
+        //     kiss_fft( cfg , (kiss_fft_cpx*) x ,  (kiss_fft_cpx*) y );
+        // });
 
         bench.run("PGFFT", [&]() {
             pgfft.apply(x,  y);
@@ -138,17 +142,39 @@ int main() {
         });
 
         bench.run("AFFT", [&]() {
-            fft.ProcessDit(X, X+transformLen, Z, Z+transformLen);
+            fft.ProcessDit(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, false, false, false);
         });
 
         bench.run("AFFT Slow", [&]() {
-            fft_slow.ProcessDit(X, X+transformLen, Z, Z+transformLen);
+            fft_slow.ProcessDit(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen);
         });
 
         bench.run("Ipp", [&]() {
             ippsFFTFwd_CToC_64fc(pSrc,pDst,pFFTSpec,pFFTWorkBuf);
         });
     }
+
+    {
+        ankerl::nanobench::Bench bench;
+        ostringstream title_stream;
+        title_stream << "New: " << transformLen;
+        bench.title(title_stream.str());
+
+        bench.minEpochIterations(10);
+
+        for (size_t i = 4; i <= 19; i++) {
+            auto transformLen2 = 1 << i;
+            auto XX = std::vector<double, xsimd::aligned_allocator<double, 128>>(transformLen2 * 2);
+            auto ZZ =std::vector<double, xsimd::aligned_allocator<double, 128>>(transformLen2 * 2);
+            FftComplex<StdSpec<double>, Double4Spec> fft2(transformLen2);
+            ostringstream name;
+            name << "FFT" << transformLen2;
+            bench.run(name.str(), [&]() {
+                fft2.ProcessDit(XX.data(), XX.data()+transformLen2, ZZ.data(), ZZ.data()+transformLen2, false, false, false);
+            });
+        }
+    }
+    
 
 
     //--------------------------------------------------------------------------
@@ -211,37 +237,37 @@ int main() {
         }
     }
 
-    {
-        ConvolutionReal<StdSpec<double>, Double4Spec> conv(transformLen);
-        std::vector<double> signal(transformLen);
-        std::vector<double> signal_b(transformLen);
-        std::vector<double> signal_auto_conv(transformLen);
+    // {
+    //     ConvolutionReal<StdSpec<double>, Double4Spec> conv(transformLen);
+    //     std::vector<double> signal(transformLen);
+    //     std::vector<double> signal_b(transformLen);
+    //     std::vector<double> signal_auto_conv(transformLen);
 
-        ankerl::nanobench::Bench bench;
-        ostringstream title_stream;
-        title_stream << "Convolution: " << transformLen;
-        bench.title(title_stream.str());
+    //     ankerl::nanobench::Bench bench;
+    //     ostringstream title_stream;
+    //     title_stream << "Convolution: " << transformLen;
+    //     bench.title(title_stream.str());
 
-        bench.minEpochIterations(10);
+    //     bench.minEpochIterations(10);
 
-        bench.run("Fast Convol", [&]() {
-            conv.ComputeConvolution(
-                signal_auto_conv.data(),
-                signal.data(),
-                signal_b.data(),
-                true
-            );
-        });
+    //     bench.run("Fast Convol", [&]() {
+    //         conv.ComputeConvolution(
+    //             signal_auto_conv.data(),
+    //             signal.data(),
+    //             signal_b.data(),
+    //             true
+    //         );
+    //     });
 
-        bench.run("Slow Convol", [&]() {
-            conv.ComputeConvolution(
-                signal_auto_conv.data(),
-                signal.data(),
-                signal_b.data(),
-                false
-            );
-        });
-    }
+    //     bench.run("Slow Convol", [&]() {
+    //         conv.ComputeConvolution(
+    //             signal_auto_conv.data(),
+    //             signal.data(),
+    //             signal_b.data(),
+    //             false
+    //         );
+    //     });
+    // }
 
     pffftd_aligned_free(W);
     pffftd_aligned_free(Y);

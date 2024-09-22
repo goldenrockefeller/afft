@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdint>
+#include "xsimd/xsimd.hpp"
 
 
 namespace goldenrockefeller{ namespace afft{
@@ -60,6 +61,7 @@ namespace goldenrockefeller{ namespace afft{
     
         using Sample = typename SampleSpec::Value;
         using Operand = typename OperandSpec::Value;
+        using vector_t = typename std::vector<Sample, xsimd::aligned_allocator<Sample, 128>>;
 
         static constexpr size_t k_N_SAMPLES_PER_OPERAND 
             = sizeof(Operand) / sizeof(Sample);
@@ -71,12 +73,12 @@ namespace goldenrockefeller{ namespace afft{
         // Use to determine COBRA buffer size. 2^PGFFT_BRC_THRESH should fit in 
         // cache.
         static inline std::size_t PGFFT_BRC_Q() {
-            return 5;
+            return 4;
         }
 
         // After 2^PGFFT_BRC_THRESH, we will use COBRA bit reversal strategy
         static inline std::size_t PGFFT_BRC_THRESH() {
-            return 11;
+            return 9;
         }
 
         static inline Sample Cos(const Sample& x){
@@ -94,6 +96,15 @@ namespace goldenrockefeller{ namespace afft{
         static inline void Store(Sample* t, const Operand& x) {
             OperandSpec::Store(t, x);
         }
+
+        static inline Operand Fma(const Operand& x, const Operand& y, const Operand& z) {
+            return OperandSpec::Fma(x, y, z);
+        }
+
+        static inline Operand Fms(const Operand& x, const Operand& y, const Operand& z) {
+            return OperandSpec::Fms(x, y, z);
+        }
+
 
         static_assert(
             ((k_N_SAMPLES_PER_OPERAND & (k_N_SAMPLES_PER_OPERAND-1)) == 0), 
@@ -113,8 +124,8 @@ namespace goldenrockefeller{ namespace afft{
             std::size_t n_radix_4_butterflies;
             bool using_final_radix_2_butterfly;
 
-            std::vector<std::vector<std::vector<Sample>>> twiddles_real;
-            std::vector<std::vector<std::vector<Sample>>> twiddles_imag;
+            std::vector<std::vector<vector_t>> twiddles_real;
+            std::vector<std::vector<vector_t>> twiddles_imag;
 
             std::size_t log_len;
             std::size_t log_reversal_len;
@@ -123,15 +134,15 @@ namespace goldenrockefeller{ namespace afft{
             std::vector<std::size_t> bit_reversed_indexes_2;
             std::vector<std::size_t> bit_reversed_indexes_dft;
 
-            std::vector<std::vector<Sample>> dft_real;
-            std::vector<std::vector<Sample>> dft_imag;
-            std::vector<std::vector<Sample>> dft_real_transpose;
-            std::vector<std::vector<Sample>> dft_imag_transpose;
+            std::vector<vector_t> dft_real;
+            std::vector<vector_t> dft_imag;
+            std::vector<vector_t> dft_real_transpose;
+            std::vector<vector_t> dft_imag_transpose;
 
-            mutable std::vector<Sample> shuffle_work_real;
-            mutable std::vector<Sample> shuffle_work_imag;
-            mutable std::vector<Sample> dif_work_real;
-            mutable std::vector<Sample> dif_work_imag;
+            mutable vector_t shuffle_work_real;
+            mutable vector_t shuffle_work_imag;
+            mutable vector_t dif_work_real;
+            mutable vector_t dif_work_imag;
         
         public:
         
@@ -183,9 +194,7 @@ namespace goldenrockefeller{ namespace afft{
                 shuffle_work_imag(transform_len),
                 dif_work_real(transform_len),
                 dif_work_imag(transform_len)
-            {
-                    // Nothing else to do.
-            }
+            {}
 
             void ProcessDit(
                 Sample* transform_real, 
@@ -203,6 +212,7 @@ namespace goldenrockefeller{ namespace afft{
 
                 std::size_t subfft_len = 1;
                 std::size_t n_subffts = transform_len;
+                std::size_t twiddle_id = 0;
 
                 //--------------------------------------------------------------
                 // BIT-REVERESED PERMUTE SIGNAL
@@ -319,12 +329,12 @@ namespace goldenrockefeller{ namespace afft{
                         signal_imag, 
                         sizeof(Sample) * transform_len);
                 }
- 
+
                 //--------------------------------------------------------------
                 // DFT PHASE
                 //--------------------------------------------------------------
                 
-                if (k_N_SAMPLES_PER_OPERAND > 1) {
+                if (k_N_SAMPLES_PER_OPERAND > 1 && subfft_len == 1) {
                     subfft_len *= k_N_SAMPLES_PER_OPERAND;
                     n_subffts /= k_N_SAMPLES_PER_OPERAND;
 
@@ -400,20 +410,48 @@ namespace goldenrockefeller{ namespace afft{
                             );
                             
                             b_operand_real_1 
-                                += a_operand_real_1 * dft_operand_real_1
-                                - a_operand_imag_1 * dft_operand_imag_1;
+                                = Fms(
+                                    a_operand_real_1,
+                                    dft_operand_real_1,
+                                    Fms(
+                                        a_operand_imag_1,
+                                        dft_operand_imag_1,
+                                        b_operand_real_1
+                                    )
+                                );
 
                             b_operand_imag_1 
-                                += a_operand_imag_1 * dft_operand_real_1
-                                + a_operand_real_1 * dft_operand_imag_1;
+                                = Fma(
+                                    a_operand_imag_1,
+                                    dft_operand_real_1,
+                                    Fma(
+                                        a_operand_real_1,
+                                        dft_operand_imag_1,
+                                        b_operand_imag_1
+                                    )
+                                );
 
                             b_operand_real_2 
-                                += a_operand_real_2 * dft_operand_real_2
-                                - a_operand_imag_2 * dft_operand_imag_2;
+                                = Fms(
+                                    a_operand_real_2,
+                                    dft_operand_real_2,
+                                    Fms(
+                                        a_operand_imag_2,
+                                        dft_operand_imag_2,
+                                        b_operand_real_2
+                                    )
+                                );
 
                             b_operand_imag_2 
-                                += a_operand_imag_2 * dft_operand_real_2
-                                + a_operand_real_2 * dft_operand_imag_2;
+                                = Fma(
+                                    a_operand_imag_2,
+                                    dft_operand_real_2,
+                                    Fma(
+                                        a_operand_real_2,
+                                        dft_operand_imag_2,
+                                        b_operand_imag_2
+                                    )
+                                );
                         
                             a_real_1 += 2;
                             a_imag_1 += 2;
@@ -432,7 +470,7 @@ namespace goldenrockefeller{ namespace afft{
                 // RADIX-4 PHASE
                 // --------------------------------------------------------------
 
-                if (k_N_SAMPLES_PER_OPERAND == 1) {
+                if (subfft_len == 1) {
                     subfft_len = subfft_len << 2;
                     n_subffts = n_subffts >> 2;
 
@@ -488,21 +526,17 @@ namespace goldenrockefeller{ namespace afft{
                         a1_imag += 4;
                         a2_imag += 4;
                         a3_imag += 4;
-                    }                   
+                    } 
+                    twiddle_id += 1;              
                 }
 
-                for (
-                    std::size_t butterfly_id 
-                        = size_t(k_N_SAMPLES_PER_OPERAND == 1); 
-                    butterfly_id < n_radix_4_butterflies;
-                    butterfly_id++
-                ) {
+                while ((n_subffts >> 2) > 0) {
                     auto subtwiddle_len = subfft_len;
                     subfft_len = subfft_len << 2;
                     n_subffts = n_subffts >> 2;
                     
-                    auto& twiddle_real = twiddles_real[butterfly_id];
-                    auto& twiddle_imag = twiddles_imag[butterfly_id];
+                    auto& twiddle_real = twiddles_real[twiddle_id];
+                    auto& twiddle_imag = twiddles_imag[twiddle_id];
                     
                     std::size_t two_subtwiddle_len = 2 * subtwiddle_len;
                     std::size_t three_subtwiddle_len = 3 * subtwiddle_len;
@@ -580,28 +614,46 @@ namespace goldenrockefeller{ namespace afft{
                                 Load(tw3_imag, tw3_operand_imag);
 
                                 store1 
-                                    = a1_operand_real * tw1_operand_real
-                                    - a1_operand_imag * tw1_operand_imag;
+                                    = Fms(
+                                        a1_operand_real,
+                                        tw1_operand_real,
+                                        a1_operand_imag * tw1_operand_imag
+                                    );
 
                                 a1_operand_imag 
-                                    = a1_operand_imag * tw1_operand_real
-                                    + a1_operand_real * tw1_operand_imag;
+                                    = Fma(
+                                        a1_operand_imag,
+                                        tw1_operand_real,
+                                        a1_operand_real * tw1_operand_imag
+                                    );
 
                                 store2 
-                                    = a2_operand_real * tw2_operand_real
-                                    - a2_operand_imag * tw2_operand_imag;
+                                    = Fms(
+                                        a2_operand_real,
+                                        tw2_operand_real,
+                                        a2_operand_imag * tw2_operand_imag
+                                    );
 
                                 a2_operand_imag 
-                                    = a2_operand_imag * tw2_operand_real
-                                    + a2_operand_real * tw2_operand_imag;
+                                    = Fma(
+                                        a2_operand_imag,
+                                        tw2_operand_real,
+                                        a2_operand_real * tw2_operand_imag
+                                    );
 
                                 store3 
-                                    = a3_operand_real * tw3_operand_real
-                                    - a3_operand_imag * tw3_operand_imag;
+                                    = Fms(
+                                        a3_operand_real,
+                                        tw3_operand_real,
+                                        a3_operand_imag * tw3_operand_imag
+                                    );
 
                                 a3_operand_imag 
-                                    = a3_operand_imag * tw3_operand_real
-                                    + a3_operand_real * tw3_operand_imag;
+                                    = Fma(
+                                        a3_operand_imag,
+                                        tw3_operand_real,
+                                        a3_operand_real * tw3_operand_imag
+                                    );
 
                                 a1_operand_real = store1;
                                 a2_operand_real = store2;
@@ -705,7 +757,8 @@ namespace goldenrockefeller{ namespace afft{
                         a1_imag += jump;
                         a2_imag += jump;
                         a3_imag += jump;
-                    }                     
+                    }    
+                    twiddle_id += 1;                  
                 }
 
                 // -------------------------------------------------------------
@@ -1520,10 +1573,10 @@ namespace goldenrockefeller{ namespace afft{
 
         private:
 
-            static std::vector<std::vector<Sample>> Transpose(
-                const std::vector<std::vector<Sample>> matrix
+            static std::vector<vector_t> Transpose(
+                const std::vector<vector_t> matrix
             ) {
-                std::vector<std::vector<Sample>> transpose;
+                std::vector<vector_t> transpose;
                 auto size0 = matrix.size();
                 if (size0 == 0) {
                     return transpose;
@@ -1567,7 +1620,7 @@ namespace goldenrockefeller{ namespace afft{
                 return transform_len;
             }
 
-            static std::vector<std::vector<std::vector<Sample>>> Twiddles(
+            static std::vector<std::vector<vector_t>> Twiddles(
                 size_t n_radix_4_butterflies,
                 bool using_final_radix_2_butterfly,
                 const std::function<Sample(Sample)>& trig_fn,
@@ -1575,7 +1628,7 @@ namespace goldenrockefeller{ namespace afft{
             ) {
                 std::size_t initial_subfft_len = k_N_SAMPLES_PER_OPERAND;
 
-                std::vector<std::vector<std::vector<Sample>>> twiddles;
+                std::vector<std::vector<vector_t>> twiddles;
 
                 std::size_t n_twiddle_vectors 
                     = n_radix_4_butterflies 
@@ -1648,12 +1701,12 @@ namespace goldenrockefeller{ namespace afft{
                 return twiddles;
             }
 
-            static std::vector<std::vector<Sample>> Dft(
+            static std::vector<vector_t> Dft(
                 const std::vector<std::size_t>& the_bit_reversed_indexes_dft,
                 const std::function<Sample(Sample)>& trig_fn,
                 int multiplier
             ) {
-                std::vector<std::vector<Sample>> dft;
+                std::vector<vector_t> dft;
 
                 dft.resize(k_N_SAMPLES_PER_OPERAND);
 

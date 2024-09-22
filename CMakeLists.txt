@@ -29,7 +29,7 @@ target_link_libraries(
    IPP::ippcv
 )
  
-target_compile_options(afft-run PUBLIC /W2  /arch:AVX2 /fp:fast /EHsc /permissive-)
+target_compile_options(afft-run PUBLIC /W2 /O2 /arch:AVX2 /fp:fast /EHsc /permissive-)
 target_include_directories(
       afft-run 
    PUBLIC 

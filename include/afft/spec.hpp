@@ -19,6 +19,14 @@ namespace goldenrockefeller{ namespace afft{
             return std::sin(x);
         }
 
+        static inline Value Fma(const Value& x, const Value& y, const Value& z) {
+            return x*y + z;
+        }
+
+        static inline Value Fms(const Value& x, const Value& y, const Value& z) {
+            return x*y - z;
+        }
+
         static inline Value Pi() {
             return Value(3.14159265358979323846264338327950288L);
         }
@@ -43,6 +51,15 @@ namespace goldenrockefeller{ namespace afft{
         static inline void Store(double* ptr, const Value& x) {
             x.store_unaligned(ptr);
         }
+    
+        static inline Value Fma(const Value& x, const Value& y, const Value& z) {
+            return xsimd::fma(x, y, z);
+        }
+
+        static inline Value Fms(const Value& x, const Value& y, const Value& z) {
+            return xsimd::fms(x, y, z);
+        }
+
     };
 }}
 
