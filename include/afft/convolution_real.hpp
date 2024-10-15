@@ -16,67 +16,73 @@ namespace goldenrockefeller{ namespace afft{
         static constexpr size_t k_N_SAMPLES_PER_OPERAND 
             = sizeof(Operand) / sizeof(Sample);
 
-        static inline void Load(const Sample* t, Operand& x) {
-            OperandSpec::Load(t, x);
+        static inline void load(const Sample* t, Operand& x) {
+            OperandSpec::load(t, x);
         }
 
-        static inline void Store(Sample* t, const Operand& x) {
-            OperandSpec::Store(t, x);
+        static inline void store(Sample* t, const Operand& x) {
+            OperandSpec::store(t, x);
         }
 
         private:
 
-            size_t signal_len;
-            size_t spectra_len;
-            FftReal<SampleSpec, OperandSpec> fft_real;
+            size_t signal_len_;
+            size_t spectra_len_;
+            FftReal<SampleSpec, OperandSpec> fft_real_;
 
-            mutable std::vector<Sample> spectra_a_real;
-            mutable std::vector<Sample> spectra_b_real;
-            mutable std::vector<Sample> spectra_a_imag;
-            mutable std::vector<Sample> spectra_b_imag;
+            mutable std::vector<Sample> spectra_a_real_;
+            mutable std::vector<Sample> spectra_b_real_;
+            mutable std::vector<Sample> spectra_a_imag_;
+            mutable std::vector<Sample> spectra_b_imag_;
 
         public:
+            ConvolutionReal() : 
+                signal_len_(0)    
+            {}
 
-            ConvolutionReal(size_t signal_len) : 
-                signal_len(signal_len),
-                spectra_len( (signal_len >> 1) + 1 ),
-                fft_real(signal_len),
-                spectra_a_real(spectra_len),
-                spectra_b_real(spectra_len),
-                spectra_a_imag(spectra_len),
-                spectra_b_imag(spectra_len)
+            explicit ConvolutionReal(size_t signal_len) : 
+                signal_len_(signal_len),
+                spectra_len_( (signal_len >> 1) + 1 ),
+                fft_real_(signal_len),
+                spectra_a_real_(spectra_len_),
+                spectra_b_real_(spectra_len_),
+                spectra_a_imag_(spectra_len_),
+                spectra_b_imag_(spectra_len_)
             {
                 // Nothing else to do.
             }
 
-        void ComputeConvolution (
+        void compute_convolution (
             Sample* convolution,
             Sample* signal_a,
             Sample* signal_b,
             bool fast = false
         ) {
-            fft_real.ComputeSpectra(
-                spectra_a_real.data(),
-                spectra_a_imag.data(),
+            if (signal_len_ == 0) {
+                return;
+            }
+            fft_real_.compute_spectra(
+                spectra_a_real_.data(),
+                spectra_a_imag_.data(),
                 signal_a,
                 false, /*rescaling*/
                 fast /*computing for convolution*/
             );
 
 
-            fft_real.ComputeSpectra(
-                spectra_b_real.data(),
-                spectra_b_imag.data(),
+            fft_real_.compute_spectra(
+                spectra_b_real_.data(),
+                spectra_b_imag_.data(),
                 signal_b,
                 false, /*rescaling*/
                 fast /*computing for convolution*/
             );
 
-            size_t half_signal_len = signal_len >> 1;
-            Sample* a_real = spectra_a_real.data();
-            Sample* b_real = spectra_b_real.data();
-            Sample* a_imag = spectra_a_imag.data();
-            Sample* b_imag = spectra_b_imag.data();
+            size_t half_signal_len = signal_len_ >> 1;
+            Sample* a_real = spectra_a_real_.data();
+            Sample* b_real = spectra_b_real_.data();
+            Sample* a_imag = spectra_a_imag_.data();
+            Sample* b_imag = spectra_b_imag_.data();
 
             for (
                 size_t i = 0;
@@ -89,11 +95,11 @@ namespace goldenrockefeller{ namespace afft{
                 Operand b_imag_operand;                
                 Operand a_real_operand_copy;
 
-                Load(a_real, a_real_operand);
-                Load(a_real, a_real_operand_copy);
-                Load(b_real, b_real_operand);
-                Load(a_imag, a_imag_operand);
-                Load(b_imag, b_imag_operand);
+                load(a_real, a_real_operand);
+                load(a_real, a_real_operand_copy);
+                load(b_real, b_real_operand);
+                load(a_imag, a_imag_operand);
+                load(b_imag, b_imag_operand);
 
                 a_real_operand =
                     a_real_operand * b_real_operand
@@ -103,8 +109,8 @@ namespace goldenrockefeller{ namespace afft{
                     a_real_operand_copy * b_imag_operand
                     + a_imag_operand * b_real_operand;
 
-                Store(a_real, a_real_operand);
-                Store(a_imag, a_imag_operand);
+                store(a_real, a_real_operand);
+                store(a_imag, a_imag_operand);
 
                 a_real += k_N_SAMPLES_PER_OPERAND;
                 a_imag += k_N_SAMPLES_PER_OPERAND;
@@ -121,10 +127,10 @@ namespace goldenrockefeller{ namespace afft{
                 a_real_copy * *b_imag
                 + *a_imag * *b_real;
 
-            fft_real.ComputeSignal(
+            fft_real_.compute_signal(
                 convolution, 
-                spectra_a_real.data(), 
-                spectra_a_imag.data(),
+                spectra_a_real_.data(), 
+                spectra_a_imag_.data(),
                 true, /*rescaling*/
                 fast /*compute for convolution*/
             );

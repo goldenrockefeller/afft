@@ -11,32 +11,32 @@ namespace goldenrockefeller{ namespace afft{
     struct StdSpec{
         using Value = ValueT;
 
-        static inline Value Cos(const Value& x) {
+        static inline Value cos(const Value& x) {
             return std::cos(x);
         }
 
-        static inline Value Sin(const Value& x) {
+        static inline Value sin(const Value& x) {
             return std::sin(x);
         }
 
-        static inline Value Fma(const Value& x, const Value& y, const Value& z) {
+        static inline Value fma(const Value& x, const Value& y, const Value& z) {
             return x*y + z;
         }
 
-        static inline Value Fms(const Value& x, const Value& y, const Value& z) {
+        static inline Value fms(const Value& x, const Value& y, const Value& z) {
             return x*y - z;
         }
 
-        static inline Value Pi() {
+        static inline Value pi() {
             return Value(3.14159265358979323846264338327950288L);
         }
 
         template <typename SampleValue>
-        static inline void Load(const SampleValue* t, Value& x) {
+        static inline void load(const SampleValue* t, Value& x) {
             x = *t;
         }
 
-        static inline void Store(Value* t, const Value& x) {
+        static inline void store(Value* t, const Value& x) {
             *t = x;
         }
     };
@@ -44,19 +44,19 @@ namespace goldenrockefeller{ namespace afft{
     struct Double4Spec{
         using Value = xsimd::batch<double, xsimd::avx>;
 
-        static inline void Load(const double* ptr, Value& x) {
+        static inline void load(const double* ptr, Value& x) {
             x = xsimd::batch<double, xsimd::avx>::load_unaligned(ptr);
         }
 
-        static inline void Store(double* ptr, const Value& x) {
+        static inline void store(double* ptr, const Value& x) {
             x.store_unaligned(ptr);
         }
     
-        static inline Value Fma(const Value& x, const Value& y, const Value& z) {
+        static inline Value fma(const Value& x, const Value& y, const Value& z) {
             return xsimd::fma(x, y, z);
         }
 
-        static inline Value Fms(const Value& x, const Value& y, const Value& z) {
+        static inline Value fms(const Value& x, const Value& y, const Value& z) {
             return xsimd::fms(x, y, z);
         }
 

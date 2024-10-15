@@ -8,12 +8,11 @@ find_package(pffft REQUIRED)
 find_package(muFFT REQUIRED)  
 find_package(xsimd REQUIRED)  
 find_package(IPP REQUIRED)
+find_package(nanobench REQUIRED) 
 
 get_target_property(pffft_INCLUDE_DIRS PFFFT INTERFACE_INCLUDE_DIRECTORIES)
 get_target_property(mufft_INCLUDE_DIRS muFFT INTERFACE_INCLUDE_DIRECTORIES)
 get_target_property(xsimd_INCLUDE_DIRS xsimd INTERFACE_INCLUDE_DIRECTORIES)
-
-find_package(nanobench REQUIRED) 
 get_target_property(nanobench_INCLUDE_DIRS nanobench::nanobench INTERFACE_INCLUDE_DIRECTORIES)
 
 # add_library(pocketfft src/pocketfft.c)
@@ -22,7 +21,7 @@ add_executable(afft-run src/main.cpp src/PGFFT.cpp)
 target_link_libraries(
    afft-run 
       PRIVATE 
-   C:/Users/white/OneDrive/Documents/Workspace/afft/src/kissfft-double.lib
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kissfft-double.lib
    IPP::ippcore 
    IPP::ipps 
    IPP::ippi 
@@ -33,7 +32,7 @@ target_compile_options(afft-run PUBLIC /W2 /O2 /arch:AVX2 /fp:fast /EHsc /permis
 target_include_directories(
       afft-run 
    PUBLIC 
-      ${CMAKE_CURRENT_SOURCE_DIR}//include
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
       ${pffft_INCLUDE_DIRS} 
       ${nanobench_INCLUDE_DIRS}
       ${mufft_INCLUDE_DIRS}
@@ -70,7 +69,6 @@ install(
 
 install(EXPORT ${PROJECT_NAME}-targets
    FILE ${PROJECT_NAME}Targets.cmake
-   NAMESPACE goldenrockefeller::
    DESTINATION ${CMAKE_INSTALL_LIBDIR}/${PROJECT_NAME}/cmake
 )
 

@@ -14,13 +14,15 @@
 using namespace std;
 using namespace goldenrockefeller::afft;
 
+
+
 template <typename Sample> 
 struct OperandSpec{
     using Value = Sample[1];
 };
 
 int main() {
-    constexpr std::size_t transformLen = 1 << 17;
+    constexpr std::size_t transformLen = 1 << 13;
     // 256, double, double, forward
     // 512, double, double, forward
     // 32, double, AVX, forward
@@ -72,7 +74,7 @@ int main() {
         Z[k+1+transformLen] = (k / 2) & 1;  /* imag */
     }
 
-    fft.ProcessDit(X, X+transformLen, Z, Z+transformLen);
+    fft.process_dit(X, X+transformLen, Z, Z+transformLen);
 
     /* compare output data */
     double diff = 0;
@@ -142,11 +144,11 @@ int main() {
         });
 
         bench.run("AFFT", [&]() {
-            fft.ProcessDit(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, false, false, false);
+            fft.process_dit(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, false, false, false);
         });
 
         bench.run("AFFT Slow", [&]() {
-            fft_slow.ProcessDit(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen);
+            fft_slow.process_dit(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen);
         });
 
         bench.run("Ipp", [&]() {
@@ -170,7 +172,7 @@ int main() {
             ostringstream name;
             name << "FFT" << transformLen2;
             bench.run(name.str(), [&]() {
-                fft2.ProcessDit(XX.data(), XX.data()+transformLen2, ZZ.data(), ZZ.data()+transformLen2, false, false, false);
+                fft2.process_dit(XX.data(), XX.data()+transformLen2, ZZ.data(), ZZ.data()+transformLen2, false, false, false);
             });
         }
     }
@@ -187,7 +189,7 @@ int main() {
         std::vector<double> spectra_real(spectra_len);
         std::vector<double> spectra_imag(spectra_len);
         
-        fft_real.ComputeSpectra(
+        fft_real.compute_spectra(
             spectra_real.data(), 
             spectra_imag.data(), 
             signal.data()
@@ -204,7 +206,7 @@ int main() {
         std::vector<double> spectra_real({61, 0, -5, 0, -43});
         std::vector<double> spectra_imag({0, 1, -36, -1, 0});
 
-        fft_real.ComputeSignal(
+        fft_real.compute_signal(
             signal.data(),
             spectra_real.data(), 
             spectra_imag.data()
@@ -225,7 +227,7 @@ int main() {
         std::vector<double> signal({1,1,1,1,0,0,0,0});
         std::vector<double> signal_b({1,1,0,0,0,0,0,0});
         std::vector<double> signal_auto_conv(signal_len_conv);
-        conv.ComputeConvolution(
+        conv.compute_convolution(
             signal_auto_conv.data(),
             signal.data(),
             signal_b.data(),
@@ -237,37 +239,37 @@ int main() {
         }
     }
 
-    // {
-    //     ConvolutionReal<StdSpec<double>, Double4Spec> conv(transformLen);
-    //     std::vector<double> signal(transformLen);
-    //     std::vector<double> signal_b(transformLen);
-    //     std::vector<double> signal_auto_conv(transformLen);
+    {
+        ConvolutionReal<StdSpec<double>, Double4Spec> conv(transformLen);
+        std::vector<double> signal(transformLen);
+        std::vector<double> signal_b(transformLen);
+        std::vector<double> signal_auto_conv(transformLen);
 
-    //     ankerl::nanobench::Bench bench;
-    //     ostringstream title_stream;
-    //     title_stream << "Convolution: " << transformLen;
-    //     bench.title(title_stream.str());
+        ankerl::nanobench::Bench bench;
+        ostringstream title_stream;
+        title_stream << "Convolution: " << transformLen;
+        bench.title(title_stream.str());
 
-    //     bench.minEpochIterations(10);
+        bench.minEpochIterations(10);
 
-    //     bench.run("Fast Convol", [&]() {
-    //         conv.ComputeConvolution(
-    //             signal_auto_conv.data(),
-    //             signal.data(),
-    //             signal_b.data(),
-    //             true
-    //         );
-    //     });
+        bench.run("Fast Convol", [&]() {
+            conv.compute_convolution(
+                signal_auto_conv.data(),
+                signal.data(),
+                signal_b.data(),
+                true
+            );
+        });
 
-    //     bench.run("Slow Convol", [&]() {
-    //         conv.ComputeConvolution(
-    //             signal_auto_conv.data(),
-    //             signal.data(),
-    //             signal_b.data(),
-    //             false
-    //         );
-    //     });
-    // }
+        bench.run("Slow Convol", [&]() {
+            conv.compute_convolution(
+                signal_auto_conv.data(),
+                signal.data(),
+                signal_b.data(),
+                false
+            );
+        });
+    }
 
     pffftd_aligned_free(W);
     pffftd_aligned_free(Y);

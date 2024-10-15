@@ -5,12 +5,12 @@
 
 namespace goldenrockefeller{ namespace afft{
     template <typename vector_t>
-    vector_t BitReversedOrder(vector_t input){
-        auto bit_reversed_indexes = BitReversedIndexes(input.size());
+    vector_t bit_reversed_order(vector_t input){
+        auto bit_reversed_indexes_ = bit_reversed_indexes(input.size());
         vector_t bit_reversed_order(input.size());
 
         for (std::size_t i = 0; i < input.size(); i++) {
-            bit_reversed_order[i] = input[bit_reversed_indexes[i]];
+            bit_reversed_order[i] = input[bit_reversed_indexes_[i]];
         }
 
         return bit_reversed_order;
@@ -27,24 +27,24 @@ namespace goldenrockefeller{ namespace afft{
         static constexpr size_t k_N_SAMPLES_PER_OPERAND 
             = sizeof(Operand) / sizeof(Sample);
 
-        static inline Sample Pi(){
-            return SampleSpec::Pi();
+        static inline Sample pi(){
+            return SampleSpec::pi();
         }
 
-        static inline Sample Cos(const Sample& x){
-            return SampleSpec::Cos(x);
+        static inline Sample cos(const Sample& x){
+            return SampleSpec::cos(x);
         }
 
-        static inline Sample Sin(const Sample& x){
-            return SampleSpec::Sin(x);
+        static inline Sample sin(const Sample& x){
+            return SampleSpec::sin(x);
         }
 
-        static inline void Load(const Sample* t, Operand& x) {
-            OperandSpec::Load(t, x);
+        static inline void load(const Sample* t, Operand& x) {
+            OperandSpec::load(t, x);
         }
 
-        static inline void Store(Sample* t, const Operand& x) {
-            OperandSpec::Store(t, x);
+        static inline void store(Sample* t, const Operand& x) {
+            OperandSpec::store(t, x);
         }
 
         static_assert(
@@ -60,44 +60,52 @@ namespace goldenrockefeller{ namespace afft{
 
         private:
 
-            std::size_t signal_len;
-            std::size_t spectra_len;
-            FftComplex<SampleSpec, OperandSpec> fft_complex;
+            std::size_t signal_len_;
+            std::size_t spectra_len_;
+            FftComplex<SampleSpec, OperandSpec> fft_complex_;
 
-            std::vector<Sample> rotor_real;
-            std::vector<Sample> rotor_imag;
+            std::vector<Sample> rotor_real_;
+            std::vector<Sample> rotor_imag_;
 
-            std::vector<Sample> rotor_bit_reversed_real;
-            std::vector<Sample> rotor_bit_reversed_imag;
+            std::vector<Sample> rotor_bit_reversed_real_;
+            std::vector<Sample> rotor_bit_reversed_imag_;
 
-            mutable std::vector<Sample> work_real;
-            mutable std::vector<Sample> work_imag;
+            mutable std::vector<Sample> work_real_;
+            mutable std::vector<Sample> work_imag_;
 
         public:
-            FftReal(std::size_t signal_len) : 
-                signal_len(CheckedSignalLen(signal_len)),
-                spectra_len( (signal_len >> 1) + 1 ),
-                fft_complex(signal_len >> 1),
-                work_real(spectra_len),
-                work_imag(spectra_len),
-                rotor_real(Rotor(signal_len >> 1, Cos, 1)),
-                rotor_imag(Rotor(signal_len >> 1, Sin, -1)),
-                rotor_bit_reversed_real(BitReversedOrder(rotor_real)),
-                rotor_bit_reversed_imag(BitReversedOrder(rotor_imag))
+            FftReal() : 
+                signal_len_(0)
+            {}
+
+            explicit FftReal(std::size_t signal_len) : 
+                signal_len_(checked_signal_len(signal_len)),
+                spectra_len_( (signal_len >> 1) + 1 ),
+                fft_complex_(signal_len >> 1),
+                work_real_(spectra_len_),
+                work_imag_(spectra_len_),
+                rotor_real_(rotor(signal_len >> 1, cos, 1)),
+                rotor_imag_(rotor(signal_len >> 1, sin, -1)),
+                rotor_bit_reversed_real_(bit_reversed_order(rotor_real_)),
+                rotor_bit_reversed_imag_(bit_reversed_order(rotor_imag_))
             {
                 // Nothing else to do.
             }
 
-            void ComputeSpectra (
+            void compute_spectra (
                 Sample* spectra_real, 
                 Sample* spectra_imag,
                 Sample* signal_real, 
                 bool rescaling = false,
                 bool computing_for_convolution = false
             ) {
-                Sample* combined_signal_real = work_real.data();
-                Sample* combined_signal_imag = work_imag.data();
-                auto half_signal_len = signal_len >> 1;
+                if (signal_len_ == 0) {
+                    return;
+                }
+
+                Sample* combined_signal_real = work_real_.data();
+                Sample* combined_signal_imag = work_imag_.data();
+                auto half_signal_len = signal_len_ >> 1;
 
                 for (
                     std::size_t i = 0;
@@ -108,7 +116,7 @@ namespace goldenrockefeller{ namespace afft{
                     combined_signal_imag[i] = signal_real[2 * i + 1];
                 }
 
-                fft_complex.ProcessDif(
+                fft_complex_.process_dif(
                     spectra_real,
                     spectra_imag,
                     combined_signal_real,
@@ -121,19 +129,19 @@ namespace goldenrockefeller{ namespace afft{
                 
                 // Calculate Spectra
 
-                spectra_real[spectra_len - 1] = 
+                spectra_real[spectra_len_ - 1] = 
                         spectra_real[0]
                         - spectra_imag[0];
 
-                spectra_imag[spectra_len - 1] = Sample(0.); 
+                spectra_imag[spectra_len_ - 1] = Sample(0.); 
 
-                Sample* reversed_spectra_real = work_real.data();
-                Sample* reversed_spectra_imag = work_imag.data();
+                Sample* reversed_spectra_real = work_real_.data();
+                Sample* reversed_spectra_imag = work_imag_.data();
                 Sample* rotor_variant_real;
                 Sample* rotor_variant_imag;
 
                 auto half_spectra_len = half_signal_len >> 1;
-                auto reversed_spectra_len = spectra_len - 1;
+                auto reversed_spectra_len = spectra_len_ - 1;
 
                 reversed_spectra_real[0] = spectra_real[0];
                 reversed_spectra_imag[0] = - spectra_imag[0];
@@ -147,8 +155,8 @@ namespace goldenrockefeller{ namespace afft{
                 // GET REVERSED SPECTRA
 
                 if (computing_for_convolution == false) { 
-                    rotor_variant_real = rotor_real.data();
-                    rotor_variant_imag = rotor_imag.data();
+                    rotor_variant_real = rotor_real_.data();
+                    rotor_variant_imag = rotor_imag_.data();
 
                     for (
                         std::size_t i = 1;
@@ -169,8 +177,8 @@ namespace goldenrockefeller{ namespace afft{
                     }
                 }
                 else {
-                    rotor_variant_real = rotor_bit_reversed_real.data();
-                    rotor_variant_imag = rotor_bit_reversed_imag.data();
+                    rotor_variant_real = rotor_bit_reversed_real_.data();
+                    rotor_variant_imag = rotor_bit_reversed_imag_.data();
 
                     reversed_spectra_real[1] =  spectra_real[1];
                     reversed_spectra_imag[1] =  -spectra_imag[1];
@@ -213,13 +221,13 @@ namespace goldenrockefeller{ namespace afft{
                     Operand rspectra_operand_imag;
                     Operand rotor_operand_imag;   
 
-                    Load(spectra_real + i, spectra_operand_real);
-                    Load(reversed_spectra_real + i, rspectra_operand_real);
-                    Load(rotor_variant_real + i, rotor_operand_real);  
+                    load(spectra_real + i, spectra_operand_real);
+                    load(reversed_spectra_real + i, rspectra_operand_real);
+                    load(rotor_variant_real + i, rotor_operand_real);  
 
-                    Load(spectra_imag + i, spectra_operand_imag);
-                    Load(reversed_spectra_imag + i, rspectra_operand_imag);
-                    Load(rotor_variant_imag + i, rotor_operand_imag);                  
+                    load(spectra_imag + i, spectra_operand_imag);
+                    load(reversed_spectra_imag + i, rspectra_operand_imag);
+                    load(rotor_variant_imag + i, rotor_operand_imag);                  
 
                     Operand difference_operand_real
                         = spectra_operand_real - rspectra_operand_real;
@@ -249,12 +257,12 @@ namespace goldenrockefeller{ namespace afft{
                             - rotated_operand_imag
                         );
 
-                    Store(spectra_real + i, spectra_operand_real); 
-                    Store(spectra_imag + i, spectra_operand_imag); 
+                    store(spectra_real + i, spectra_operand_real); 
+                    store(spectra_imag + i, spectra_operand_imag); 
                 }
             }
             
-            void ComputeSignal (                
+            void compute_signal (                
                 Sample* signal_real, 
                 Sample* spectra_real, 
                 Sample* spectra_imag,
@@ -263,9 +271,13 @@ namespace goldenrockefeller{ namespace afft{
             ) {
                 Sample ampl_at_zero = spectra_real[0];
                 Sample ampl_at_zero_imag = spectra_imag[0];
-                Sample ampl_at_nyquist = spectra_real[spectra_len - 1];
+                Sample ampl_at_nyquist = spectra_real[spectra_len_ - 1];
                 Sample* compact_spectra_real = spectra_real;
                 Sample* compact_spectra_imag = spectra_imag;
+
+                if (signal_len_ == 0) {
+                    return;
+                }
 
                 // Put spectra in compact form (zero and nyquist frequencies are
                 // stored in the first value). 
@@ -275,14 +287,14 @@ namespace goldenrockefeller{ namespace afft{
                 spectra_imag[0] 
                     = Sample(0.5) * (ampl_at_zero - ampl_at_nyquist);
 
-                Sample* reversed_spectra_real = work_real.data();
-                Sample* reversed_spectra_imag = work_imag.data();
+                Sample* reversed_spectra_real = work_real_.data();
+                Sample* reversed_spectra_imag = work_imag_.data();
                 Sample* rotor_variant_real;
                 Sample* rotor_variant_imag;
 
-                auto half_signal_len = signal_len >> 1;
-                auto half_spectra_len = signal_len >> 2;
-                auto reversed_spectra_len = spectra_len - 1;
+                auto half_signal_len = signal_len_ >> 1;
+                auto half_spectra_len = signal_len_ >> 2;
+                auto reversed_spectra_len = spectra_len_ - 1;
 
                 reversed_spectra_real[0] = spectra_real[0];
                 reversed_spectra_imag[0] = - spectra_imag[0];
@@ -296,8 +308,8 @@ namespace goldenrockefeller{ namespace afft{
                 // GET REVERSED SPECTRA
 
                 if (computing_for_convolution == false) { 
-                    rotor_variant_real = rotor_real.data();
-                    rotor_variant_imag = rotor_imag.data();
+                    rotor_variant_real = rotor_real_.data();
+                    rotor_variant_imag = rotor_imag_.data();
 
                     for (
                         std::size_t i = 1;
@@ -317,8 +329,8 @@ namespace goldenrockefeller{ namespace afft{
                             = - spectra_imag[i];
                     }
                 } else {
-                    rotor_variant_real = rotor_bit_reversed_real.data();
-                    rotor_variant_imag = rotor_bit_reversed_imag.data();
+                    rotor_variant_real = rotor_bit_reversed_real_.data();
+                    rotor_variant_imag = rotor_bit_reversed_imag_.data();
 
                     reversed_spectra_real[1] =  spectra_real[1];
                     reversed_spectra_imag[1] =  -spectra_imag[1];
@@ -349,8 +361,8 @@ namespace goldenrockefeller{ namespace afft{
 
                 Operand half(0.5);
 
-                compact_spectra_real = work_real.data();
-                compact_spectra_imag = work_imag.data();
+                compact_spectra_real = work_real_.data();
+                compact_spectra_imag = work_imag_.data();
 
                 for (
                     std::size_t i = 0;
@@ -365,13 +377,13 @@ namespace goldenrockefeller{ namespace afft{
                     Operand rspectra_operand_imag;
                     Operand rotor_operand_imag;   
 
-                    Load(spectra_real + i, spectra_operand_real);
-                    Load(reversed_spectra_real + i, rspectra_operand_real);
-                    Load(rotor_variant_real + i, rotor_operand_real);  
+                    load(spectra_real + i, spectra_operand_real);
+                    load(reversed_spectra_real + i, rspectra_operand_real);
+                    load(rotor_variant_real + i, rotor_operand_real);  
 
-                    Load(spectra_imag + i, spectra_operand_imag);
-                    Load(reversed_spectra_imag + i, rspectra_operand_imag);
-                    Load(rotor_variant_imag + i, rotor_operand_imag);                  
+                    load(spectra_imag + i, spectra_operand_imag);
+                    load(reversed_spectra_imag + i, rspectra_operand_imag);
+                    load(rotor_variant_imag + i, rotor_operand_imag);                  
 
                     Operand difference_operand_real
                         = spectra_operand_real - rspectra_operand_real;
@@ -401,8 +413,8 @@ namespace goldenrockefeller{ namespace afft{
                             + rotated_operand_imag
                         );
 
-                    Store(compact_spectra_real + i, spectra_operand_real); 
-                    Store(compact_spectra_imag + i, spectra_operand_imag); 
+                    store(compact_spectra_real + i, spectra_operand_real); 
+                    store(compact_spectra_imag + i, spectra_operand_imag); 
                 }
 
                 compact_spectra_real[0] 
@@ -415,7 +427,7 @@ namespace goldenrockefeller{ namespace afft{
                 Sample* raw_combined_signal_imag 
                     = signal_real + half_signal_len;
 
-                fft_complex.ProcessDit(
+                fft_complex_.process_dit(
                     raw_combined_signal_real,
                     raw_combined_signal_imag,
                     compact_spectra_real,
@@ -427,8 +439,8 @@ namespace goldenrockefeller{ namespace afft{
 
                 // Interweave the combined signal;
 
-                Sample* combined_signal_real = work_real.data();
-                Sample* combined_signal_imag = work_imag.data();
+                Sample* combined_signal_real = work_real_.data();
+                Sample* combined_signal_imag = work_imag_.data();
 
                 for (
                     std::size_t i = 0;
@@ -438,11 +450,11 @@ namespace goldenrockefeller{ namespace afft{
                     Operand real;
                     Operand imag;
 
-                    Load(raw_combined_signal_real + i, real);
-                    Load(raw_combined_signal_imag + i, imag);
+                    load(raw_combined_signal_real + i, real);
+                    load(raw_combined_signal_imag + i, imag);
 
-                    Store(combined_signal_real + i, real);
-                    Store(combined_signal_imag + i, imag);
+                    store(combined_signal_real + i, real);
+                    store(combined_signal_imag + i, imag);
                 }
 
                 for (
@@ -460,7 +472,7 @@ namespace goldenrockefeller{ namespace afft{
             }
 
         private:
-            static std::size_t CheckedSignalLen(std::size_t signal_len) {
+            static std::size_t checked_signal_len(std::size_t signal_len) {
 
                 if ((signal_len & (signal_len-1)) != 0) {
                     throw std::invalid_argument(
@@ -484,7 +496,7 @@ namespace goldenrockefeller{ namespace afft{
                 return signal_len;
             }
 
-            std::vector<Sample> Rotor (
+            std::vector<Sample> rotor (
                 std::size_t rotor_len,
                 const std::function<Sample(Sample)>& trig_fn,
                 int multiplier
@@ -499,8 +511,8 @@ namespace goldenrockefeller{ namespace afft{
                     rotor[i] 
                         = multiplier 
                         * trig_fn(
-                            Pi() 
-                            * Rem2(Sample(i) / Sample(rotor_len))
+                            pi() 
+                            * rem_2(Sample(i) / Sample(rotor_len))
                         );
                 }
 
