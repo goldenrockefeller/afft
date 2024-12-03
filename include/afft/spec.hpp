@@ -5,7 +5,7 @@
 
 #include "xsimd/xsimd.hpp"
 
-namespace goldenrockefeller{ namespace afft{
+namespace afft{
 
     template <typename ValueT>
     struct StdSpec{
@@ -61,7 +61,7 @@ namespace goldenrockefeller{ namespace afft{
         }
 
     };
-}}
+}
 
 
 

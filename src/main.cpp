@@ -10,11 +10,10 @@
 #include "nanobench.h"
 #include "ipp.h"
 #include <sstream>
+#include <random>
 
 using namespace std;
-using namespace goldenrockefeller::afft;
-
-
+using namespace afft;
 
 template <typename Sample> 
 struct OperandSpec{
@@ -22,7 +21,7 @@ struct OperandSpec{
 };
 
 int main() {
-    constexpr std::size_t transformLen = 1 << 13;
+    constexpr std::size_t transformLen = 1 << 6;
     // 256, double, double, forward
     // 512, double, double, forward
     // 32, double, AVX, forward
@@ -63,6 +62,8 @@ int main() {
     
     FftComplex<StdSpec<double>, Double4Spec> fft(transformLen);
     FftComplex<StdSpec<double>, StdSpec<double>> fft_slow(transformLen);
+
+    ippSetNumThreads(1);
 
     /* prepare some input data */
     for (int k = 0; k < transformLen; k += 2)
@@ -118,8 +119,6 @@ int main() {
     if (pFFTInitBuf) ippFree(pFFTInitBuf);
 
     // Do the FFT
-    
-
     {
         ankerl::nanobench::Bench bench;
         ostringstream title_stream;
@@ -152,6 +151,7 @@ int main() {
         });
 
         bench.run("Ipp", [&]() {
+            std::memcpy(pSrc, XX.data(), transformLen * 2 * sizeof(double));
             ippsFFTFwd_CToC_64fc(pSrc,pDst,pFFTSpec,pFFTWorkBuf);
         });
     }
@@ -177,8 +177,6 @@ int main() {
         }
     }
     
-
-
     //--------------------------------------------------------------------------
 
     std::size_t signal_len = 8;
@@ -244,6 +242,16 @@ int main() {
         std::vector<double> signal(transformLen);
         std::vector<double> signal_b(transformLen);
         std::vector<double> signal_auto_conv(transformLen);
+        std::vector<double> signal_auto_conv_b(transformLen);
+
+        std::random_device rd;  // Non-deterministic random number generator
+        std::mt19937 gen(rd()); // Mersenne Twister engine
+        std::uniform_real_distribution<> dis(0.0, 1.0); 
+
+        for (int i = 0; i < signal.size(); ++i) {
+            signal[i] = dis(gen); 
+            signal_b[i] = dis(gen);
+        }
 
         ankerl::nanobench::Bench bench;
         ostringstream title_stream;
@@ -269,6 +277,28 @@ int main() {
                 false
             );
         });
+
+        conv.compute_convolution(
+            signal_auto_conv.data(),
+            signal.data(),
+            signal_b.data(),
+            true
+        );
+
+        conv.compute_convolution(
+            signal_auto_conv_b.data(),
+            signal.data(),
+            signal_b.data(),
+            false
+        );
+
+        double conv_diff = 0;
+
+        for (int i = 0; i < signal.size(); ++i) {
+            conv_diff += abs(signal_auto_conv[i] - signal_auto_conv_b[i]);
+        }
+
+        cout << "Conv diff: " << conv_diff << endl;
     }
 
     pffftd_aligned_free(W);

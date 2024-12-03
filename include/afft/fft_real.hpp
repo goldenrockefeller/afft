@@ -3,7 +3,7 @@
 
 #include "afft/fft_complex.hpp"
 
-namespace goldenrockefeller{ namespace afft{
+namespace afft{
     template <typename vector_t>
     vector_t bit_reversed_order(vector_t input){
         auto bit_reversed_indexes_ = bit_reversed_indexes(input.size());
@@ -519,6 +519,6 @@ namespace goldenrockefeller{ namespace afft{
                 return rotor;
             }
     };
-}}
+}
 
 #endif

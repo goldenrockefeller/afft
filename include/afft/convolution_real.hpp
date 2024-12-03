@@ -3,7 +3,7 @@
 
 #include "afft/fft_real.hpp"
 
-namespace goldenrockefeller{ namespace afft{
+namespace afft{
     template<
         typename SampleSpec, 
         typename OperandSpec
@@ -136,7 +136,7 @@ namespace goldenrockefeller{ namespace afft{
             );
         }
     };
-}}
+}
 
 #endif
 

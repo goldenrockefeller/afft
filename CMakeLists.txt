@@ -10,12 +10,6 @@ find_package(xsimd REQUIRED)
 find_package(IPP REQUIRED)
 find_package(nanobench REQUIRED) 
 
-get_target_property(pffft_INCLUDE_DIRS PFFFT INTERFACE_INCLUDE_DIRECTORIES)
-get_target_property(mufft_INCLUDE_DIRS muFFT INTERFACE_INCLUDE_DIRECTORIES)
-get_target_property(xsimd_INCLUDE_DIRS xsimd INTERFACE_INCLUDE_DIRECTORIES)
-get_target_property(nanobench_INCLUDE_DIRS nanobench::nanobench INTERFACE_INCLUDE_DIRECTORIES)
-
-# add_library(pocketfft src/pocketfft.c)
 add_executable(afft-run src/main.cpp src/PGFFT.cpp)
 
 target_link_libraries(
@@ -26,19 +20,19 @@ target_link_libraries(
    IPP::ipps 
    IPP::ippi 
    IPP::ippcv
+   PFFFT
+   muFFT
+   xsimd
+   nanobench::nanobench
 )
  
-target_compile_options(afft-run PUBLIC /W2 /O2 /arch:AVX2 /fp:fast /EHsc /permissive-)
+target_compile_options(afft-run PUBLIC /W2 /O2 /Oi /arch:AVX2 /fp:fast /EHsc /permissive-)
 target_include_directories(
       afft-run 
    PUBLIC 
-      ${CMAKE_CURRENT_SOURCE_DIR}/include
-      ${pffft_INCLUDE_DIRS} 
-      ${nanobench_INCLUDE_DIRS}
-      ${mufft_INCLUDE_DIRS}
-      ${xsimd_INCLUDE_DIRS})
-
-target_link_libraries(afft-run PRIVATE PFFFT muFFT nanobench::nanobench)
+      $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> 
+      $<INSTALL_INTERFACE:include> 
+)
 
 set_target_properties(afft-run PROPERTIES
     CXX_STANDARD 11
@@ -61,7 +55,7 @@ target_include_directories(afft INTERFACE
 include(GNUInstallDirs)
 
 install(
-   TARGETS afft
+   TARGETS ${PROJECT_NAME}
    EXPORT ${PROJECT_NAME}-targets
    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/${PROJECT_NAME}
    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}/${PROJECT_NAME}
@@ -73,7 +67,7 @@ install(EXPORT ${PROJECT_NAME}-targets
 )
 
 install(
-  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/afft
+  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/${PROJECT_NAME}
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 

@@ -10,7 +10,7 @@
 #include "xsimd/xsimd.hpp"
 
 
-namespace goldenrockefeller{ namespace afft{
+namespace afft{
     std::size_t int_log_2(std::size_t n) {
         if (n == 0) {
             return 0;
@@ -507,6 +507,7 @@ namespace goldenrockefeller{ namespace afft{
                     Sample b2_imag;
                     Sample b3_imag;
 
+                    #pragma loop( ivdep )
                     for (
                         std::size_t subfft_id = 0;
                         subfft_id < n_subffts;
@@ -556,7 +557,7 @@ namespace goldenrockefeller{ namespace afft{
                     std::size_t two_subtwiddle_len = 2 * subtwiddle_len;
                     std::size_t three_subtwiddle_len = 3 * subtwiddle_len;
 
-                    auto a0_real = transform_real;
+                    auto a0_real = transform_real; 
                     auto a1_real = transform_real + subtwiddle_len;
                     auto a2_real = transform_real + two_subtwiddle_len;
                     auto a3_real = transform_real + three_subtwiddle_len;
@@ -573,7 +574,7 @@ namespace goldenrockefeller{ namespace afft{
                     auto tw1_imag_start = twiddle_imag[0].data();
                     auto tw2_imag_start = twiddle_imag[1].data();
                     auto tw3_imag_start = twiddle_imag[2].data();
-
+                    
                     for (
                         std::size_t subfft_id = 0;
                         subfft_id < n_subffts;
@@ -587,6 +588,7 @@ namespace goldenrockefeller{ namespace afft{
                         auto tw2_imag = tw2_imag_start;
                         auto tw3_imag = tw3_imag_start;
 
+                        #pragma loop( ivdep )
                         for (
                             std::size_t i = 0; 
                             i < subtwiddle_len;
@@ -795,7 +797,7 @@ namespace goldenrockefeller{ namespace afft{
 
                     auto tw1_real = twiddle_real[0].data();
                     auto tw1_imag = twiddle_imag[0].data();
-
+                    #pragma loop( ivdep )
                     for (
                         std::size_t i = 0; 
                         i < subtwiddle_len;
@@ -1750,6 +1752,6 @@ namespace goldenrockefeller{ namespace afft{
                 return dft;
             }
     };
-}}
+}
 
 #endif
