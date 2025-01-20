@@ -23,6 +23,7 @@ namespace afft{
     class FftReal {
         using Sample = typename SampleSpec::Value;
         using Operand = typename OperandSpec::Value;
+        using Vector = typename std::vector<Sample, xsimd::aligned_allocator<Sample, 128>>;
 
         static constexpr size_t k_N_SAMPLES_PER_OPERAND 
             = sizeof(Operand) / sizeof(Sample);
@@ -64,14 +65,14 @@ namespace afft{
             std::size_t spectra_len_;
             FftComplex<SampleSpec, OperandSpec> fft_complex_;
 
-            std::vector<Sample> rotor_real_;
-            std::vector<Sample> rotor_imag_;
+            Vector rotor_real_;
+            Vector rotor_imag_;
 
-            std::vector<Sample> rotor_bit_reversed_real_;
-            std::vector<Sample> rotor_bit_reversed_imag_;
+            Vector rotor_bit_reversed_real_;
+            Vector rotor_bit_reversed_imag_;
 
-            mutable std::vector<Sample> work_real_;
-            mutable std::vector<Sample> work_imag_;
+            mutable Vector work_real_;
+            mutable Vector work_imag_;
 
         public:
             FftReal() : 
@@ -82,12 +83,12 @@ namespace afft{
                 signal_len_(checked_signal_len(signal_len)),
                 spectra_len_( (signal_len >> 1) + 1 ),
                 fft_complex_(signal_len >> 1),
-                work_real_(spectra_len_),
-                work_imag_(spectra_len_),
                 rotor_real_(rotor(signal_len >> 1, cos, 1)),
                 rotor_imag_(rotor(signal_len >> 1, sin, -1)),
                 rotor_bit_reversed_real_(bit_reversed_order(rotor_real_)),
-                rotor_bit_reversed_imag_(bit_reversed_order(rotor_imag_))
+                rotor_bit_reversed_imag_(bit_reversed_order(rotor_imag_)),
+                work_real_(spectra_len_),
+                work_imag_(spectra_len_)
             {
                 // Nothing else to do.
             }
@@ -272,8 +273,6 @@ namespace afft{
                 Sample ampl_at_zero = spectra_real[0];
                 Sample ampl_at_zero_imag = spectra_imag[0];
                 Sample ampl_at_nyquist = spectra_real[spectra_len_ - 1];
-                Sample* compact_spectra_real = spectra_real;
-                Sample* compact_spectra_imag = spectra_imag;
 
                 if (signal_len_ == 0) {
                     return;
@@ -361,8 +360,8 @@ namespace afft{
 
                 Operand half(0.5);
 
-                compact_spectra_real = work_real_.data();
-                compact_spectra_imag = work_imag_.data();
+                Sample* compact_spectra_real = work_real_.data();
+                Sample* compact_spectra_imag = work_imag_.data();
 
                 for (
                     std::size_t i = 0;
@@ -496,12 +495,12 @@ namespace afft{
                 return signal_len;
             }
 
-            std::vector<Sample> rotor (
+            Vector rotor (
                 std::size_t rotor_len,
                 const std::function<Sample(Sample)>& trig_fn,
                 int multiplier
             ) {
-                std::vector<Sample> rotor(rotor_len);
+                Vector rotor(rotor_len);
 
                 for (
                     std::size_t i = 0;

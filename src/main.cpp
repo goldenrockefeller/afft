@@ -4,13 +4,15 @@
 #include "afft/spec.hpp"
 #include "afft/convolution_real.hpp"
 #include "pffft_double.h"
-#include "fft.h"
+//#include "fft.h"
 #include "PGFFT.h"
 #include "kiss_fft.h"
 #include "nanobench.h"
 #include "ipp.h"
 #include <sstream>
 #include <random>
+#include "otfft.h"
+
 
 using namespace std;
 using namespace afft;
@@ -19,6 +21,8 @@ template <typename Sample>
 struct OperandSpec{
     using Value = Sample[1];
 };
+
+#include "afft/bit_reversal_prototypes.hpp"
 
 int main() {
     constexpr std::size_t transformLen = 1 << 6;
@@ -32,6 +36,8 @@ int main() {
     PGFFT pgfft(transformLen);
     kiss_fft_cfg cfg=kiss_fft_alloc(transformLen,0,NULL,NULL);
 
+    auto bit_reversed_indexes = afft::bit_reversed_indexes(transformLen);
+    
     double *X = (double*)pffftd_aligned_malloc(transformLen * 2 * sizeof(double));  /* complex: re/im interleaved */
     double *Y = (double*)pffftd_aligned_malloc(transformLen * 2 * sizeof(double));  /* complex: re/im interleaved */
     double *Z = (double*)pffftd_aligned_malloc(transformLen * 2 * sizeof(double));  /* complex: re/im not-interleaved */
@@ -95,6 +101,60 @@ int main() {
     int N = transformLen;
     const int order=(int)(std::log((double)N)/std::log(2.0));
 
+    {
+        ankerl::nanobench::Bench bench;
+        ostringstream title_stream;
+        title_stream << "Br Size: " << transformLen;
+        bench.title(title_stream.str());
+
+        bench.minEpochIterations(10);
+
+        auto XX = std::vector<double, xsimd::aligned_allocator<double, 128>>(transformLen * 2);
+        auto ZZ =std::vector<double, xsimd::aligned_allocator<double, 128>>(transformLen * 2);
+        auto YY =std::vector<double, xsimd::aligned_allocator<double, 128>>(transformLen * 2);
+
+        auto ot_fft = OTFFT::Factory::createComplexFFT(N);
+
+        // bench.run("Kiss", [&]() {
+        //     kiss_fft( cfg , (kiss_fft_cpx*) x ,  (kiss_fft_cpx*) y );
+        // });
+
+        bench.run("Standard Reversal", [&]() {
+            standard_bitreversal(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen, bit_reversed_indexes.data());
+        });
+
+        bench.run("Restrict Standard Reversal", [&]() {
+            r_standard_bitreversal(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen, bit_reversed_indexes.data());
+        });
+
+        bench.run("Double Interleave", [&]() {
+            interleave_bitreversal(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, YY.data(), YY.data()+transformLen, transformLen, bit_reversed_indexes.data());
+        });
+
+        bench.run("Restrict Double Interleave", [&]() {
+            r_interleave_bitreversal(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, YY.data(), YY.data()+transformLen, transformLen, bit_reversed_indexes.data());
+        });
+
+        bench.run("id_interleave_bitreversal", [&]() {
+            id_interleave_bitreversal(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, YY.data(), YY.data()+transformLen, transformLen, bit_reversed_indexes.data());
+        });
+
+        bench.run("recursive_bitreversal", [&]() {
+            recursive_bitreversal(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen, 1);
+        });
+
+        bench.run("interleave_bitreversal_unrolled64", [&]() {
+            interleave_bitreversal_unrolled64(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen,YY.data(), YY.data()+transformLen, transformLen, bit_reversed_indexes.data());
+        });
+
+        bench.run("bitreversal64_unrolled", [&]() {
+            bitreversal64_unrolled(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+        });
+
+        std::cout << XX[6] << std::endl;
+    
+    }
+
     // Spec and working buffers
     IppsFFTSpec_C_64fc *pFFTSpec=0;
     Ipp8u *pFFTSpecBuf, *pFFTInitBuf, *pFFTWorkBuf;
@@ -130,17 +190,26 @@ int main() {
         auto XX = std::vector<double, xsimd::aligned_allocator<double, 128>>(transformLen * 2);
         auto ZZ =std::vector<double, xsimd::aligned_allocator<double, 128>>(transformLen * 2);
 
+        auto ot_fft = OTFFT::Factory::createComplexFFT(N);
+
+        
+        
+
         // bench.run("Kiss", [&]() {
         //     kiss_fft( cfg , (kiss_fft_cpx*) x ,  (kiss_fft_cpx*) y );
         // });
 
         bench.run("PGFFT", [&]() {
-            pgfft.apply(x,  y);
+            pgfft.apply(x,  y); 
         });
-
-        bench.run("PFFFT", [&]() {
-            pffftd_transform(ffts, (double*) x,  (double*) y, W, PFFFT_FORWARD);
+        
+        bench.run("OTFFT", [&]() {
+            ot_fft->fwd((OTFFT::complex_t*)X); 
         });
+ 
+        // bench.run("PFFFT", [&]() {
+        //     pffftd_transform(ffts, (double*) x,  (double*) y, W, PFFFT_FORWARD);
+        // });
 
         bench.run("AFFT", [&]() {
             fft.process_dit(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, false, false, false);

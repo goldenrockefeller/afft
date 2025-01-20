@@ -241,10 +241,10 @@ namespace afft{
                             new_index < transform_len_; 
                             new_index++
                         ) {
-                            auto old_index = bit_reversed_indexes_[new_index];
+                            auto old_index_0 = bit_reversed_indexes_[new_index];
 
-                            transform_real[new_index] = signal_real[old_index];
-                            transform_imag[new_index] = signal_imag[old_index];
+                            transform_real[new_index] = signal_real[old_index_0];
+                            transform_imag[new_index] = signal_imag[old_index_0];
                         }
                     }
                     else {
@@ -507,7 +507,6 @@ namespace afft{
                     Sample b2_imag;
                     Sample b3_imag;
 
-                    #pragma loop( ivdep )
                     for (
                         std::size_t subfft_id = 0;
                         subfft_id < n_subffts;
@@ -588,7 +587,6 @@ namespace afft{
                         auto tw2_imag = tw2_imag_start;
                         auto tw3_imag = tw3_imag_start;
 
-                        #pragma loop( ivdep )
                         for (
                             std::size_t i = 0; 
                             i < subtwiddle_len;
@@ -797,7 +795,7 @@ namespace afft{
 
                     auto tw1_real = twiddle_real[0].data();
                     auto tw1_imag = twiddle_imag[0].data();
-                    #pragma loop( ivdep )
+                    
                     for (
                         std::size_t i = 0; 
                         i < subtwiddle_len;
@@ -823,12 +821,12 @@ namespace afft{
                             load(tw1_imag, tw1_operand_imag);
 
                             store 
-                                = a1_operand_real * tw1_operand_real
-                                - a1_operand_imag * tw1_operand_imag;
+                                = fms(a1_operand_real, tw1_operand_real,
+                                a1_operand_imag * tw1_operand_imag);
 
                             a1_operand_imag 
-                                = a1_operand_imag * tw1_operand_real
-                                + a1_operand_real * tw1_operand_imag;
+                                = fma(a1_operand_imag, tw1_operand_real,
+                                a1_operand_real * tw1_operand_imag);
 
                             a1_operand_real = store;
 
@@ -890,8 +888,8 @@ namespace afft{
                         load(t_real, t_operand_real);
                         load(t_imag, t_operand_imag);
 
-                        t_operand_real *= scale_factor;
-                        t_operand_imag *= scale_factor;
+                        t_operand_real = t_operand_real * scale_factor;
+                        t_operand_imag = t_operand_imag * scale_factor;
 
                         store(t_real, t_operand_real);
                         store(t_imag, t_operand_imag);
@@ -938,6 +936,7 @@ namespace afft{
                 // -------------------------------------------------------------
                 // RADIX-2 PHASE
                 // -------------------------------------------------------------
+                // TODO unroll x2
                 if (using_final_radix_2_butterfly_) {
                     auto subtwiddle_len = subfft_len >> 1;
 
@@ -999,14 +998,14 @@ namespace afft{
 
                             load(tw1_real, tw1_operand_real);
                             load(tw1_imag, tw1_operand_imag);
-
+                            
                             tmp 
-                                = b1_operand_real * tw1_operand_real
-                                - b1_operand_imag * tw1_operand_imag;
+                                = fms(b1_operand_real, tw1_operand_real,
+                                b1_operand_imag * tw1_operand_imag);
 
                             b1_operand_imag 
-                                = b1_operand_imag * tw1_operand_real
-                                + b1_operand_real * tw1_operand_imag;
+                                = fma(b1_operand_imag, tw1_operand_real,
+                                b1_operand_real * tw1_operand_imag);
 
                             b1_operand_real = tmp;
 
@@ -1183,7 +1182,7 @@ namespace afft{
                                 load(tw1_imag, tw1_operand_imag);
                                 load(tw2_imag, tw2_operand_imag);
                                 load(tw3_imag, tw3_operand_imag);
-
+                                // TODO FMA
                                 store1 
                                     = a1_operand_real * tw1_operand_real
                                     - a1_operand_imag * tw1_operand_imag;
@@ -1390,7 +1389,7 @@ namespace afft{
                                 dft_imag_transpose_[dft_basis_id + half_dft_len].data(), 
                                 dft_operand_imag_2
                             );
-                            
+                            // TODO FMA
                             b_operand_real_1 
                                 += a_operand_real_1 * dft_operand_real_1
                                 - a_operand_imag_1 * dft_operand_imag_1;
