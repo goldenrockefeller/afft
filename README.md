@@ -47,32 +47,32 @@ Prototype
 - Six stage FFT with 1 vs 2 transposes 
 
 ## Inspiration and lessons
-- [Python Prototype] (https://github.com/goldenrockefeller/fft-prototype)
+- [Python Prototype](https://github.com/goldenrockefeller/fft-prototype)
   - Personal python project for putting the lessons together and testing quickly for correctness
-- [PFFFT] (https://bitbucket.org/jpommier/pffft/src/master/) and [Github Repo] (https://github.com/marton78/pffft)
+- [PFFFT](https://bitbucket.org/jpommier/pffft/src/master/) and [Github Repo](https://github.com/marton78/pffft)
   - My initial understand of how fast FFTs work
   - Skip bit reversal reordering stage for convolution
   - Align data for faster SIMD computation
   - Most likely using Cooley-Tukey algorithm
-- [PGFFT] (https://www.shoup.net/PGFFT/)
+- [PGFFT](https://www.shoup.net/PGFFT/)
   - Use COBRA for fast Bit-reversal for large FFT sizes.
   - Consider potential efficiencies for bit-reversal
-- [OTFFT] (http://wwwa.pikara.ne.jp/okojisan/otfft-en/index.html) and [Github Repo] (https://github.com/DEWETRON/otfft)
+- [OTFFT](http://wwwa.pikara.ne.jp/okojisan/otfft-en/index.html) and [Github Repo](https://github.com/DEWETRON/otfft)
   - Stockham and Six-stage algorithms instead of Cooley Tukey
   - The fastest of the open-source liberal license FFTs for smaller (<4096 samples) FFTs
-- [KFR] (https://github.com/kfrlib/fft)
+- [KFR](https://github.com/kfrlib/fft)
   - Another fast FFT, most likely using Cooley-Tukey
   - Not Liberal License
   - Using Clang to compile can lead to faster performance
-- [Ryg's Blog on FFT impentation] https://fgiesen.wordpress.com/2023/03/19/notes-on-ffts-for-implementers/
+- [Ryg's Blog on FFT impentation](https://fgiesen.wordpress.com/2023/03/19/notes-on-ffts-for-implementers/)
   - Use DIT and DIF to skip bit reversal reordering stage
   - Radix-4 fft is probaby good enough, considering register usage and code complexity
   - Use FMA more efficient for radix-2
-- [Robin Scheibler Blog] (http://www.robinscheibler.org/2013/02/13/real-fft.html)
+- [Robin Scheibler Blog](http://www.robinscheibler.org/2013/02/13/real-fft.html)
   - Getting Real FFT from Complex FFT
-- [Rick Lyons' blog] (https://www.dsprelated.com/showarticle/800.php)
+- [Rick Lyons' blog](https://www.dsprelated.com/showarticle/800.php)
   - Using FFT algorithm to implement inverse FFT through a pointer switch (Method #3)
-- [Ipp] (https://www.intel.com/content/www/us/en/developer/articles/training/how-to-use-intel-ipp-s-1d-fourier-transform-functions.html)
+- [Ipp](https://www.intel.com/content/www/us/en/developer/articles/training/how-to-use-intel-ipp-s-1d-fourier-transform-functions.html)
   - A gold standard for FFT, used to verify how efficient AFFT is 
 
 
