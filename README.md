@@ -29,7 +29,7 @@ Prototype
   - Radix-8 could possibly mean less passes over data, maybe increaing performance further with large FFTs.
   - When considering FMA having the same throughput as a simgle Add (or multiply) operation, the the cost of a complex multiplication goes from x6 to x4: which makes radix-8 give NO speedup at all.
   - At max, Split-radix with only 4 real operations per complex sample gives a 5.9% max reduction over radix 4, but is complicated to implement.
-  - With FMA having the same throughput of a single add or multiply operation, then the most direct costs become comparible: 3.5 operations for both radix-4 and radix-8, though moving operations arround can lead to better performance
+  - With FMA even radix-2 have attractive complexity.
 - Manually Unrolling the main radix-4 and radix-2 loops does not give much speed up.
 - Compiling with Clang gives 5% to 20% speed up over compiling with MSVC or GCC (on Windows, Intel i7-12700)
 - Skipping Bit-reversal in convolution is more performant
