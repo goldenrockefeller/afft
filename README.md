@@ -38,6 +38,7 @@ Prototype
 ## Investigating
 - Cache-oblivious order of bit-reversal reorder
 - Do index arithmetic with SIMD instructions
+- Single-pass Bitreversal
 - Unrolling of small cache-oblivious order of bit-reversal
 - Breaking out Bit-reversal algorithm as a template parameter to the FFT
 - In-place operation of main radix-4 and radix-2 loops
