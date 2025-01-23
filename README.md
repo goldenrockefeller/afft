@@ -17,8 +17,8 @@ Prototype
 ## Implementation
 - Expects different arrays for real and imaginary numbers (not directly supporting interweaved input, not direction support array or complex numbers)
 - Cooley-Tukey (mixed radix of 2 and 4)
-- 
-
+- Possible to add SIMD-enabled bit-reversal (implement for AVX-double for now)
+  
 ## Investigated
 - While not benchmarked, Radix-8 and split radix is possibly not worth the effort.
   - For radix-4: the number of operations for sample is (3 twiddles complex multiplies (x6) + 8 complex additions (x2) for 4 complex numbers simulating 2 radix-2 stages) = 4.25 real operations per complex sample
@@ -29,19 +29,27 @@ Prototype
   - Radix-8 could possibly mean less passes over data, maybe increaing performance further with large FFTs.
   - When considering FMA having the same throughput as a simgle Add (or multiply) operation, the the cost of a complex multiplication goes from x6 to x4: which makes radix-8 give NO speedup at all.
   - At max, Split-radix with only 4 real operations per complex sample gives a 5.9% max reduction over radix 4, but is complicated to implement.
-- - With FMA having the same throughput of a single add or multiply operation, then the costs become comparible: 3.5 operations for both radix-4 and radix-8
-- Unrolling the main radix-4 and radix-2 loops does not give much speed up.
+  - With FMA having the same throughput of a single add or multiply operation, then the most direct costs become comparible: 3.5 operations for both radix-4 and radix-8, though moving operations arround can lead to better performance
+- Manually Unrolling the main radix-4 and radix-2 loops does not give much speed up.
 - Compiling with Clang gives 5% to 20% speed up over compiling with MSVC or GCC (on Windows, Intel i7-12700)
-- 
+- Skipping Bit-reversal in convolution is more performant
+- Theoretical, Stockham method means no bit-reversal, but adds to each stage of the algorithm. Right now, it is not worth changing the entire algorithm to find out. Additionally, Stockham requires multiple variations SIMD interweave operations, (e.g. interweave every other sample, every other two samples, etc....). This could potentially make relying  Stockham less portable, or more complicated.
   
 ## Investigating
+- Cache-oblivious order of bit-reversal reorder
+- Do index arithmetic with SIMD instructions
+- Unrolling of small cache-oblivious order of bit-reversal
+- Breaking out Bit-reversal algorithm as a template parameter to the FFT
 - In-place operation of main radix-4 and radix-2 loops
 - According to Ryg's blog, use FMA more efficient for radix-2 (and maybe radix-4)
+- Recursive, Cache-oblivious FFTs
+- Main FFT stages performed in-place
+- Six stage FFT with 1 vs 2 transposes 
 
 ## Inspiration and lessons
-- [Python Prototype]
+- [Python Prototype] (https://github.com/goldenrockefeller/fft-prototype)
   - Personal python project for putting the lessons together and testing quickly for correctness
-- [PFFFT] 
+- [PFFFT] (https://bitbucket.org/jpommier/pffft/src/master/) and [Github Repo] (https://github.com/marton78/pffft)
   - My initial understand of how fast FFTs work
   - Skip bit reversal reordering stage for convolution
   - Align data for faster SIMD computation
@@ -55,10 +63,11 @@ Prototype
 - [KFR] (https://github.com/kfrlib/fft)
   - Another fast FFT, most likely using Cooley-Tukey
   - Not Liberal License
-  - Use Clang to compile for faster performance
+  - Using Clang to compile can lead to faster performance
 - [Ryg's Blog on FFT impentation] https://fgiesen.wordpress.com/2023/03/19/notes-on-ffts-for-implementers/
   - Use DIT and DIF to skip bit reversal reordering stage
   - Radix-4 fft is probaby good enough, considering register usage and code complexity
+  - Use FMA more efficient for radix-2
 - [Robin Scheibler Blog] (http://www.robinscheibler.org/2013/02/13/real-fft.html)
   - Getting Real FFT from Complex FFT
 - [Rick Lyons' blog] (https://www.dsprelated.com/showarticle/800.php)
