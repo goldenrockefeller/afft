@@ -14,12 +14,27 @@ Prototype
 - Cache-Oblivious where possible
 - Liberal license
 
-## Inspiration
+## Inspiration and lessons
+- Python Prototype
 - PFFFT
+  - My initial understand of how fast FFTs work
+  - Skip bit reversal reordering stage for convolution
+  - Align data for faster SIMD computation
+  - Most likely using Cooley-Tukey algorithm
 - PGFFT
+  - Use COBRA for fast Bit-reversal for large FFT sizes.
 - OTFFT
+  - Stockham and Six-stage algorithms instead of Cooley Tukey
+  - The fastest of the open-source liberal license FFTs for smaller (<4096 samples) FFTs
+- KVR
+  - Another fast FFT, most likely using Cooley-Tukey
+  - Not Liberal License
+  - Use Clang to compile for faster performance
 - Ryg's Blog on FFT impentation https://fgiesen.wordpress.com/2023/03/19/notes-on-ffts-for-implementers/
-- Prototype
+  - Use DIT and DIF to skip bit reversal reordering stage
+  - Radix-4 fft is probaby good enough, considering register usage and code complexity
+- Ipp
+  - A gold standard for FFT, used to verify how efficient AFFT is 
 
 ## Implementation
 - Expects different arrays for real and imaginary numbers (not directly supporting interweaved input, not direction support array or complex numbers)
@@ -34,7 +49,8 @@ Prototype
 - - With FMA having the same through put of a single add or Muli
 - Unrolling the main radix-4 and radix-2 loops does not give much speed up.
 - Compiling with Clang gives 5% to 20% speed up over compiling with MSVC or GCC (on Windows, Intel i7-12700)
-- 
+- On w
 ## Investigating
-
+- In-place operation of main radix-4 and radix-2 loops
+- 
 
