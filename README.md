@@ -34,10 +34,10 @@ Prototype
 - Compiling with Clang gives 5% to 20% speed up over compiling with MSVC or GCC (on Windows, Intel i7-12700)
 - Skipping Bit-reversal in convolution is more performant
 - Theoretical, Stockham method means no bit-reversal, but adds to each stage of the algorithm. Right now, it is not worth changing the entire algorithm to find out. Additionally, Stockham requires multiple variations SIMD interweave operations, (e.g. interweave every other sample, every other two samples, etc....). This could potentially make relying  Stockham less portable, or more complicated.
+-  Index arithmetic with SIMD instructions is NOT performative
   
 ## Investigating
 - Cache-oblivious order of bit-reversal reorder
-- Do index arithmetic with SIMD instructions
 - Single-pass Bitreversal
 - Unrolling of small cache-oblivious order of bit-reversal
 - Breaking out Bit-reversal algorithm as a template parameter to the FFT
