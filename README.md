@@ -20,42 +20,50 @@ Prototype
 - 
 
 ## Investigated
-- While not benchmarked, Radix-8 and split radix possibly not worth the effort.
+- While not benchmarked, Radix-8 and split radix is possibly not worth the effort.
   - For radix-4: the number of operations for sample is (3 twiddles complex multiplies (x6) + 8 complex additions (x2) for 4 complex numbers simulating 2 radix-2 stages) = 4.25 real operations per complex sample
-  - For radix-8: using special reduction for 1+i: (7 twiddles complex multiplies (x6) + 24 complex additions (x2) + 4 "1+i" multiplication (x2) for 8 complex numbers simulating 3 radix-2 stages) =  4.083
-  - Theoretically, radix-8 gives a only 4% decrease in time, but this reduction might be less with we consider that the more operations can more easily overload registers. 
-- - With FMA having the same through put of a single add or Muli
+  - For radix-8: using special reduction for 1+i: (7 twiddles complex multiplies (x6) + 24 complex additions (x2) + 4 "1+i" multiplication (x2 or x4?) for 8 complex numbers simulating 3 radix-2 stages) =  4.083
+  - Theoretically, radix-8 gives a only 4% decrease in time, but this reduction might be less with we consider that the more operations can more easily overload registers.
+  - Radix-8 is more complicated.
+  - Radix-8 can save time over a Radix-4 + radix 2 stage, but choosing the next radix gets more complex, plus there is only 1 or 0 radix-stages, so speed up will be limited over the entire algorithm
+  - Radix-8 could possibly mean less passes over data, maybe increaing performance further with large FFTs.
+  - When considering FMA having the same throughput as a simgle Add (or multiply) operation, the the cost of a complex multiplication goes from x6 to x4: which makes radix-8 give NO speedup at all.
+  - At max, Split-radix with only 4 real operations per complex sample gives a 5.9% max reduction over radix 4, but is complicated to implement.
+- - With FMA having the same throughput of a single add or multiply operation, then the costs become comparible: 3.5 operations for both radix-4 and radix-8
 - Unrolling the main radix-4 and radix-2 loops does not give much speed up.
 - Compiling with Clang gives 5% to 20% speed up over compiling with MSVC or GCC (on Windows, Intel i7-12700)
-- On w
+- 
   
 ## Investigating
 - In-place operation of main radix-4 and radix-2 loops
+- According to Ryg's blog, use FMA more efficient for radix-2 (and maybe radix-4)
 
 ## Inspiration and lessons
-- Python Prototype
-- PFFFT 
+- [Python Prototype]
+  - Personal python project for putting the lessons together and testing quickly for correctness
+- [PFFFT] 
   - My initial understand of how fast FFTs work
   - Skip bit reversal reordering stage for convolution
   - Align data for faster SIMD computation
   - Most likely using Cooley-Tukey algorithm
-- PGFFT (https://www.shoup.net/PGFFT/)
+- [PGFFT] (https://www.shoup.net/PGFFT/)
   - Use COBRA for fast Bit-reversal for large FFT sizes.
-- OTFFT
+  - Consider potential efficiencies for bit-reversal
+- [OTFFT] (http://wwwa.pikara.ne.jp/okojisan/otfft-en/index.html) and [Github Repo] (https://github.com/DEWETRON/otfft)
   - Stockham and Six-stage algorithms instead of Cooley Tukey
   - The fastest of the open-source liberal license FFTs for smaller (<4096 samples) FFTs
-- KVR
+- [KFR] (https://github.com/kfrlib/fft)
   - Another fast FFT, most likely using Cooley-Tukey
   - Not Liberal License
   - Use Clang to compile for faster performance
-- Ryg's Blog on FFT impentation https://fgiesen.wordpress.com/2023/03/19/notes-on-ffts-for-implementers/
+- [Ryg's Blog on FFT impentation] https://fgiesen.wordpress.com/2023/03/19/notes-on-ffts-for-implementers/
   - Use DIT and DIF to skip bit reversal reordering stage
   - Radix-4 fft is probaby good enough, considering register usage and code complexity
-- Robin Scheibler Blog (http://www.robinscheibler.org/2013/02/13/real-fft.html)
+- [Robin Scheibler Blog] (http://www.robinscheibler.org/2013/02/13/real-fft.html)
   - Getting Real FFT from Complex FFT
-- Rick Lyons' blog (https://www.dsprelated.com/showarticle/800.php)
+- [Rick Lyons' blog] (https://www.dsprelated.com/showarticle/800.php)
   - Using FFT algorithm to implement inverse FFT through a pointer switch (Method #3)
-- Ipp
+- [Ipp] (https://www.intel.com/content/www/us/en/developer/articles/training/how-to-use-intel-ipp-s-1d-fourier-transform-functions.html)
   - A gold standard for FFT, used to verify how efficient AFFT is 
 
 
