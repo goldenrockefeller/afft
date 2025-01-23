@@ -37,9 +37,11 @@ Prototype
 -  Index arithmetic with SIMD instructions is NOT performative
   
 ## Investigating
-- Cache-oblivious order of bit-reversal reorder
-- Single-pass Bitreversal
-- Unrolling of small cache-oblivious order of bit-reversal
+- Single-pass Bitreversal (Small size)
+- SSE Bit reversal (Small Size)
+- Unrolled single-pass bitreversal (small size)
+- Cache-oblivious order of bit-reversal reorder (medium and large size, compare to COBRA)
+- Small cache-oblivious order of bit-reversal
 - Breaking out Bit-reversal algorithm as a template parameter to the FFT
 - In-place operation of main radix-4 and radix-2 loops
 - According to Ryg's blog, use FMA more efficient for radix-2 (and maybe radix-4)
