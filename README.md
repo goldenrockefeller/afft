@@ -10,7 +10,7 @@ Prototype
 - Highly portable, yet efficient
 - Template-based for easy adaptation to other platforms and future-proofing (extends to AVX and Neon)
 - Header-only
-- Power of 2 (targeting under 2^22)
+- Powers of 2 (targeting under 2^22)
 - Cache-Oblivious where possible
 - Liberal license
 
