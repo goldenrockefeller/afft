@@ -74,7 +74,7 @@ Prototype
   - Getting Real FFT from Complex FFT
 - [Rick Lyons' blog](https://www.dsprelated.com/showarticle/800.php)
   - Using FFT algorithm to implement inverse FFT through a pointer switch (Method #3)
-- [MULTIPLY-ADD OPTIMIZED FFT KERNELS] https://www.auer.net/mao.pdf
+- [MULTIPLY-ADD OPTIMIZED FFT KERNELS](https://www.auer.net/mao.pdf)
   - FMA optimized Radix-2  has the lowest complexity! 40% reduction of normal radix-2
   - FMA optimized Radix-4 has the same low complexity as Radix-2
 - [Ipp](https://www.intel.com/content/www/us/en/developer/articles/training/how-to-use-intel-ipp-s-1d-fourier-transform-functions.html)
