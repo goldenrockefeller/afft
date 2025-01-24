@@ -27,7 +27,6 @@ Prototype
   - Radix-8 is more complicated.
   - Radix-8 can save time over a Radix-4 + radix 2 stage, but choosing the next radix gets more complex, plus there is only 1 or 0 radix-stages, so speed up will be limited over the entire algorithm
   - Radix-8 could possibly mean less passes over data, maybe increaing performance further with large FFTs.
-  - When considering FMA having the same throughput as a simgle Add (or multiply) operation, the the cost of a complex multiplication goes from x6 to x4: which makes radix-8 give NO speedup at all.
   - At max, Split-radix with only 4 real operations per complex sample gives a 5.9% max reduction over radix 4, but is complicated to implement.
   - With FMA even radix-2 have attractive complexity.
 - Manually Unrolling the main radix-4 and radix-2 loops does not give much speed up.
