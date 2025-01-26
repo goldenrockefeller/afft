@@ -673,171 +673,10 @@ void interleave_bitreversal(double* out_real, double* out_imag, double* in_real,
     }
 }
 
-void id_interleave_bitreversal(double* out_real, double* out_imag, double* in_real, double* in_imag, double* work_real, double* work_imag, std::size_t len, std::size_t* bit_reversed_indexes) {
-    using Operand = xsimd::batch<double, xsimd::avx>;
-    using Id4 = xsimd::batch<std::size_t, xsimd::avx>;
 
-        //         x = xsimd::batch<double, xsimd::avx>::load_unaligned(ptr);
-        // }
-
-        // static inline void store(double* ptr, const Value& x) {
-        //     x.store_unaligned(ptr);
-    auto quarter_len = len >> 2;
-    auto half_len = len >> 1;
-    auto three_quarter_len = quarter_len + half_len;
-
-    // AAA
-    Id4 ioffset4 = {0, quarter_len, half_len, three_quarter_len};
-
-    Id4 iq_real((std::size_t) in_real);
-    iq_real += ioffset4;
-
-    Id4 iq_imag((std::size_t) in_imag);
-    iq_real += ioffset4;
-
-    Id4 ooffset4 = {0, 4, half_len, half_len + 4};
-
-    Id4 oq_real((std::size_t) work_real);
-    oq_real += ooffset4;
-
-    Id4 oq_imag((std::size_t) work_imag);
-    oq_imag += ooffset4;
-
-    Id4 four4(4 * sizeof(double));
-    Id4 eight4(8 * sizeof(double));
-
-    Id4 iqn = {std::size_t( work_real), std::size_t(work_real + half_len), std::size_t (work_imag), std::size_t (work_imag + half_len)};
-
-    double*& iq_real_d0 = ((double**)(&iq_real))[0];
-    double*& iq_real_d1 = ((double**)(&iq_real))[1];
-    double*& iq_real_d2 = ((double**)(&iq_real))[2];
-    double*& iq_real_d3 = ((double**)(&iq_real))[3];
-
-    double*& iq_imag_d0 = ((double**)(&iq_imag))[0];
-    double*& iq_imag_d1 = ((double**)(&iq_imag))[1];
-    double*& iq_imag_d2 = ((double**)(&iq_imag))[2];
-    double*& iq_imag_d3 = ((double**)(&iq_imag))[3];
-
-    double*& oq_real_d0 = ((double**)(&oq_real))[0];
-    double*& oq_real_d1 = ((double**)(&oq_real))[1];
-    double*& oq_real_d2 = ((double**)(&oq_real))[2]; 
-    double*& oq_real_d3 = ((double**)(&oq_real))[3];
-
-    double*& oq_imag_d0 = ((double**)(&oq_imag))[0];
-    double*& oq_imag_d1 = ((double**)(&oq_imag))[1];
-    double*& oq_imag_d2 = ((double**)(&oq_imag))[2];
-    double*& oq_imag_d3 = ((double**)(&oq_imag))[3];
-
-    for (
-        std::size_t new_index = 0;
-        new_index < quarter_len; 
-        new_index+=4
-    ) {
-        Operand q0_real = Operand::load_unaligned(iq_real_d0);
-        Operand q1_real = Operand::load_unaligned(iq_real_d1);
-        Operand q2_real = Operand::load_unaligned(iq_real_d2);
-        Operand q3_real = Operand::load_unaligned(iq_real_d3);
-
-        Operand q0_imag = Operand::load_unaligned(iq_imag_d0);
-        Operand q1_imag = Operand::load_unaligned(iq_imag_d1);
-        Operand q2_imag = Operand::load_unaligned(iq_imag_d2);
-        Operand q3_imag = Operand::load_unaligned(iq_imag_d3);
-
-        Operand p0_real = xsimd::zip_lo(q0_real, q1_real);
-        Operand p1_real = xsimd::zip_hi(q0_real, q1_real);
-        Operand p2_real = xsimd::zip_lo(q2_real, q3_real);
-        Operand p3_real = xsimd::zip_hi(q2_real, q3_real);
-
-        Operand p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
-        Operand p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
-        Operand p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
-        Operand p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
-
-        p0_real.store_unaligned(oq_real_d0);
-        p1_real.store_unaligned(oq_real_d1);
-        p2_real.store_unaligned(oq_real_d2);
-        p3_real.store_unaligned(oq_real_d3);
-
-        p0_imag.store_unaligned(oq_imag_d0);
-        p1_imag.store_unaligned(oq_imag_d1);
-        p2_imag.store_unaligned(oq_imag_d2);
-        p3_imag.store_unaligned(oq_imag_d3);
-
-        // This could be optimized too!!!!
-        iq_real += four4;
-
-        iq_imag += four4;
-
-        oq_real += eight4;
-
-        oq_imag += eight4;
-    }
-
-    auto iq0_real = work_real;
-    auto iq1_real = work_real + half_len;
-
-    auto iq0_imag = work_imag;
-    auto iq1_imag = work_imag + half_len;
-
-    double* o0_real;
-    double* o1_real;
-
-    double* o0_imag;
-    double* o1_imag;
-
-    for (
-        std::size_t new_index = 0;
-        new_index < len; 
-        new_index+=8
-    ) {
-        auto old_index_0 = bit_reversed_indexes[new_index];
-        auto old_index_1 = bit_reversed_indexes[new_index + 4];
-
-        o0_real  = out_real + old_index_0;
-        o1_real  = out_real + old_index_1;
-
-        o0_imag  = out_imag + old_index_0;
-        o1_imag  = out_imag + old_index_1;
-
-        Operand q0_real = Operand::load_unaligned(iq0_real);
-        Operand q1_real = Operand::load_unaligned(iq1_real);
-
-        Operand q0_imag = Operand::load_unaligned(iq0_imag);
-        Operand q1_imag = Operand::load_unaligned(iq1_imag);
-
-        // Operand q0_real = Operand::load_unaligned(((double**)(&iqn))[0]);
-        // Operand q1_real = Operand::load_unaligned(((double**)(&iqn))[1]);
-
-        // Operand q0_imag = Operand::load_unaligned(((double**)(&iqn))[2]);
-        // Operand q1_imag = Operand::load_unaligned(((double**)(&iqn))[3]);
-
-        // std::cout << iq0_real << " " << ((double**)(&iqn))[0] <<std::endl;
-
-        Operand p0_real = xsimd::zip_lo(q0_real, q1_real);
-        Operand p1_real = xsimd::zip_hi(q0_real, q1_real);
-
-        Operand p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
-        Operand p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
-
-        //intereave and drop
-
-        p0_real.store_unaligned(o0_real);
-        p1_real.store_unaligned(o1_real);
-
-        p0_imag.store_unaligned(o0_imag);
-        p1_imag.store_unaligned(o1_imag);
-
-        iq0_real+=4;
-        iq1_real+=4;
-
-        iq0_imag += 4;
-        iq1_imag += 4;
-
-        // iqn += four4;
-    }
-}
-
-void r_interleave_bitreversal(double*__restrict__ out_real, double*__restrict__ out_imag, double*__restrict__ in_real, double*__restrict__ in_imag, double*__restrict__ work_real, double*__restrict__ work_imag, std::size_t len, std::size_t*__restrict__ bit_reversed_indexes) {
+void interleave_bitreversal_single_pass(double* out_real, double* out_imag, double* in_real, double* in_imag, std::size_t len, std::size_t* bit_reversed_indexes) {
+    // On len 64, "unrolling" instead of using lookup table gives 15% performance boost, (save 1 to 2 ns)
+    
     using Operand = xsimd::batch<double, xsimd::avx>;
 
         //         x = xsimd::batch<double, xsimd::avx>::load_unaligned(ptr);
@@ -860,21 +699,26 @@ void r_interleave_bitreversal(double*__restrict__ out_real, double*__restrict__ 
     auto iq2_imag = in_imag + half_len;
     auto iq3_imag = in_imag + three_quarter_len;
 
-    auto oq0_real = work_real;
-    auto oq1_real = work_real + 4;
-    auto oq2_real = work_real + half_len;
-    auto oq3_real = work_real + half_len + 4;
-
-    auto oq0_imag = work_imag;
-    auto oq1_imag = work_imag + 4;
-    auto oq2_imag = work_imag + half_len;
-    auto oq3_imag = work_imag + half_len + 4;
-    
     for (
         std::size_t new_index = 0;
         new_index < quarter_len; 
         new_index+=4
     ) {
+        auto old_index_0 = bit_reversed_indexes[new_index];
+        auto old_index_1 = bit_reversed_indexes[new_index + 1];
+        auto old_index_2 = bit_reversed_indexes[new_index + 2];
+        auto old_index_3 = bit_reversed_indexes[new_index + 3];
+
+        auto o0_real  = out_real + old_index_0;
+        auto o1_real  = out_real + old_index_1;
+        auto o2_real  = out_real + old_index_2;
+        auto o3_real  = out_real + old_index_3;
+
+        auto o0_imag  = out_imag + old_index_0;
+        auto o1_imag  = out_imag + old_index_1;
+        auto o2_imag  = out_imag + old_index_2;
+        auto o3_imag  = out_imag + old_index_3;
+
         Operand q0_real = Operand::load_unaligned(iq0_real);
         Operand q1_real = Operand::load_unaligned(iq1_real);
         Operand q2_real = Operand::load_unaligned(iq2_real);
@@ -894,18 +738,27 @@ void r_interleave_bitreversal(double*__restrict__ out_real, double*__restrict__ 
         Operand p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
         Operand p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
         Operand p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
+    
+        Operand r0_real = xsimd::zip_lo(p0_real, p2_real);
+        Operand r1_real = xsimd::zip_hi(p0_real, p2_real);
+        Operand r2_real = xsimd::zip_lo(p1_real, p3_real);
+        Operand r3_real = xsimd::zip_hi(p1_real, p3_real);
 
-        p0_real.store_unaligned(oq0_real);
-        p1_real.store_unaligned(oq1_real);
-        p2_real.store_unaligned(oq2_real);
-        p3_real.store_unaligned(oq3_real);
+        Operand r0_imag = xsimd::zip_lo(p0_imag, p2_imag);
+        Operand r1_imag = xsimd::zip_hi(p0_imag, p2_imag);
+        Operand r2_imag = xsimd::zip_lo(p1_imag, p3_imag);
+        Operand r3_imag = xsimd::zip_hi(p1_imag, p3_imag);
 
-        p0_imag.store_unaligned(oq0_imag);
-        p1_imag.store_unaligned(oq1_imag);
-        p2_imag.store_unaligned(oq2_imag);
-        p3_imag.store_unaligned(oq3_real);
+        r0_real.store_unaligned(o0_real);
+        r1_real.store_unaligned(o1_real);
+        r2_real.store_unaligned(o2_real);
+        r3_real.store_unaligned(o3_real);
 
-        // This could be optimized too!!!!
+        r0_imag.store_unaligned(o0_imag);
+        r1_imag.store_unaligned(o1_imag);
+        r2_imag.store_unaligned(o2_imag);
+        r3_imag.store_unaligned(o3_imag);
+
         iq0_real+=4;
         iq1_real+=4;
         iq2_real+=4;
@@ -915,68 +768,552 @@ void r_interleave_bitreversal(double*__restrict__ out_real, double*__restrict__ 
         iq1_imag += 4;
         iq2_imag += 4;
         iq3_imag += 4;
-
-        oq0_real += 8;
-        oq1_real += 8;
-        oq2_real += 8;
-        oq3_real += 8;
-
-        oq0_imag += 8;
-        oq1_imag += 8;
-        oq2_imag += 8;
-        oq3_imag += 8;
     }
+}
 
-    iq0_real = work_real;
-    iq1_real = work_real + half_len;
 
-    iq0_imag = work_imag;
-    iq1_imag = work_imag + half_len;
-    
-    double* o0_real;
-    double* o1_real;
+void interleave_bitreversal_single_pass_unrolled64(double* out_real, double* out_imag, double* in_real, double* in_imag) {
+    using Operand = xsimd::batch<double, xsimd::avx>;
+    Operand q0_real;
+    Operand q1_real;
+    Operand q2_real;
+    Operand q3_real;
 
-    double* o0_imag;
-    double* o1_imag;
+    Operand q0_imag;
+    Operand q1_imag;
+    Operand q2_imag;
+    Operand q3_imag;
 
-    for (
-        std::size_t new_index = 0;
-        new_index < len; 
-        new_index+=8
-    ) {
-        auto old_index_0 = bit_reversed_indexes[new_index];
-        auto old_index_1 = bit_reversed_indexes[new_index + 4];
+    Operand p0_real;
+    Operand p1_real;
+    Operand p2_real;
+    Operand p3_real;
 
-        o0_real  = out_real + old_index_0;
-        o1_real  = out_real + old_index_1;
+    Operand p0_imag;
+    Operand p1_imag;
+    Operand p2_imag;
+    Operand p3_imag;
 
-        o0_imag  = out_imag + old_index_0;
-        o1_imag  = out_imag + old_index_1;
+    Operand r0_real;
+    Operand r1_real;
+    Operand r2_real;
+    Operand r3_real;
 
-        Operand q0_real = Operand::load_unaligned(iq0_real);
-        Operand q1_real = Operand::load_unaligned(iq1_real);
+    Operand r0_imag;
+    Operand r1_imag;
+    Operand r2_imag;
+    Operand r3_imag;
 
-        Operand q0_imag = Operand::load_unaligned(iq0_imag);
-        Operand q1_imag = Operand::load_unaligned(iq1_imag);
-
-        Operand p0_real = xsimd::zip_lo(q0_real, q1_real);
-        Operand p1_real = xsimd::zip_hi(q0_real, q1_real);
-
-        Operand p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
-        Operand p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
-
-        //intereave and drop
-
-        p0_real.store_unaligned(o0_real);
-        p1_real.store_unaligned(o1_real);
-
-        p0_imag.store_unaligned(o0_imag);
-        p1_imag.store_unaligned(o1_imag);
-
-        iq0_real+=4;
-        iq1_real+=4;
-
-        iq0_imag += 4;
-        iq1_imag += 4;
-    }
+    q0_real = Operand::load_unaligned(in_real + 0);
+q1_real = Operand::load_unaligned(in_real + 16);
+q2_real = Operand::load_unaligned(in_real + 32);
+q3_real = Operand::load_unaligned(in_real + 18);
+q0_imag = Operand::load_unaligned(in_imag + 0);
+q1_imag = Operand::load_unaligned(in_imag + 16);
+q2_imag = Operand::load_unaligned(in_imag + 32);
+q3_imag = Operand::load_unaligned(in_imag + 18);
+p0_real = xsimd::zip_lo(q0_real, q1_real);
+p1_real = xsimd::zip_hi(q0_real, q1_real);
+p2_real = xsimd::zip_lo(q2_real, q3_real);
+p3_real = xsimd::zip_hi(q2_real, q3_real);
+p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
+p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
+p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
+p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
+r0_real = xsimd::zip_lo(p0_real, p2_real);
+r1_real = xsimd::zip_hi(p0_real, p2_real);
+r2_real = xsimd::zip_lo(p1_real, p3_real);
+r3_real = xsimd::zip_hi(p1_real, p3_real);
+r0_imag = xsimd::zip_lo(p0_imag, p2_imag);
+r1_imag = xsimd::zip_hi(p0_imag, p2_imag);
+r2_imag = xsimd::zip_lo(p1_imag, p3_imag);
+r3_imag = xsimd::zip_hi(p1_imag, p3_imag);
+r0_real.store_unaligned(out_real + 0);
+r1_real.store_unaligned(out_real + 32);
+r2_real.store_unaligned(out_real + 16);
+r3_real.store_unaligned(out_real + 48);
+r0_imag.store_unaligned(out_imag + 0);
+r1_imag.store_unaligned(out_imag + 32);
+r2_imag.store_unaligned(out_imag + 16);
+r3_imag.store_unaligned(out_imag + 48);
+q0_real = Operand::load_unaligned(in_real + 4);
+q1_real = Operand::load_unaligned(in_real + 20);
+q2_real = Operand::load_unaligned(in_real + 36);
+q3_real = Operand::load_unaligned(in_real + 22);
+q0_imag = Operand::load_unaligned(in_imag + 4);
+q1_imag = Operand::load_unaligned(in_imag + 20);
+q2_imag = Operand::load_unaligned(in_imag + 36);
+q3_imag = Operand::load_unaligned(in_imag + 22);
+p0_real = xsimd::zip_lo(q0_real, q1_real);
+p1_real = xsimd::zip_hi(q0_real, q1_real);
+p2_real = xsimd::zip_lo(q2_real, q3_real);
+p3_real = xsimd::zip_hi(q2_real, q3_real);
+p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
+p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
+p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
+p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
+r0_real = xsimd::zip_lo(p0_real, p2_real);
+r1_real = xsimd::zip_hi(p0_real, p2_real);
+r2_real = xsimd::zip_lo(p1_real, p3_real);
+r3_real = xsimd::zip_hi(p1_real, p3_real);
+r0_imag = xsimd::zip_lo(p0_imag, p2_imag);
+r1_imag = xsimd::zip_hi(p0_imag, p2_imag);
+r2_imag = xsimd::zip_lo(p1_imag, p3_imag);
+r3_imag = xsimd::zip_hi(p1_imag, p3_imag);
+r0_real.store_unaligned(out_real + 8);
+r1_real.store_unaligned(out_real + 40);
+r2_real.store_unaligned(out_real + 24);
+r3_real.store_unaligned(out_real + 56);
+r0_imag.store_unaligned(out_imag + 8);
+r1_imag.store_unaligned(out_imag + 40);
+r2_imag.store_unaligned(out_imag + 24);
+r3_imag.store_unaligned(out_imag + 56);
+q0_real = Operand::load_unaligned(in_real + 8);
+q1_real = Operand::load_unaligned(in_real + 24);
+q2_real = Operand::load_unaligned(in_real + 40);
+q3_real = Operand::load_unaligned(in_real + 26);
+q0_imag = Operand::load_unaligned(in_imag + 8);
+q1_imag = Operand::load_unaligned(in_imag + 24);
+q2_imag = Operand::load_unaligned(in_imag + 40);
+q3_imag = Operand::load_unaligned(in_imag + 26);
+p0_real = xsimd::zip_lo(q0_real, q1_real);
+p1_real = xsimd::zip_hi(q0_real, q1_real);
+p2_real = xsimd::zip_lo(q2_real, q3_real);
+p3_real = xsimd::zip_hi(q2_real, q3_real);
+p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
+p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
+p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
+p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
+r0_real = xsimd::zip_lo(p0_real, p2_real);
+r1_real = xsimd::zip_hi(p0_real, p2_real);
+r2_real = xsimd::zip_lo(p1_real, p3_real);
+r3_real = xsimd::zip_hi(p1_real, p3_real);
+r0_imag = xsimd::zip_lo(p0_imag, p2_imag);
+r1_imag = xsimd::zip_hi(p0_imag, p2_imag);
+r2_imag = xsimd::zip_lo(p1_imag, p3_imag);
+r3_imag = xsimd::zip_hi(p1_imag, p3_imag);
+r0_real.store_unaligned(out_real + 4);
+r1_real.store_unaligned(out_real + 36);
+r2_real.store_unaligned(out_real + 20);
+r3_real.store_unaligned(out_real + 52);
+r0_imag.store_unaligned(out_imag + 4);
+r1_imag.store_unaligned(out_imag + 36);
+r2_imag.store_unaligned(out_imag + 20);
+r3_imag.store_unaligned(out_imag + 52);
+q0_real = Operand::load_unaligned(in_real + 12);
+q1_real = Operand::load_unaligned(in_real + 28);
+q2_real = Operand::load_unaligned(in_real + 44);
+q3_real = Operand::load_unaligned(in_real + 30);
+q0_imag = Operand::load_unaligned(in_imag + 12);
+q1_imag = Operand::load_unaligned(in_imag + 28);
+q2_imag = Operand::load_unaligned(in_imag + 44);
+q3_imag = Operand::load_unaligned(in_imag + 30);
+p0_real = xsimd::zip_lo(q0_real, q1_real);
+p1_real = xsimd::zip_hi(q0_real, q1_real);
+p2_real = xsimd::zip_lo(q2_real, q3_real);
+p3_real = xsimd::zip_hi(q2_real, q3_real);
+p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
+p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
+p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
+p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
+r0_real = xsimd::zip_lo(p0_real, p2_real);
+r1_real = xsimd::zip_hi(p0_real, p2_real);
+r2_real = xsimd::zip_lo(p1_real, p3_real);
+r3_real = xsimd::zip_hi(p1_real, p3_real);
+r0_imag = xsimd::zip_lo(p0_imag, p2_imag);
+r1_imag = xsimd::zip_hi(p0_imag, p2_imag);
+r2_imag = xsimd::zip_lo(p1_imag, p3_imag);
+r3_imag = xsimd::zip_hi(p1_imag, p3_imag);
+r0_real.store_unaligned(out_real + 12);
+r1_real.store_unaligned(out_real + 44);
+r2_real.store_unaligned(out_real + 28);
+r3_real.store_unaligned(out_real + 60);
+r0_imag.store_unaligned(out_imag + 12);
+r1_imag.store_unaligned(out_imag + 44);
+r2_imag.store_unaligned(out_imag + 28);
+r3_imag.store_unaligned(out_imag + 60);
+q0_real = Operand::load_unaligned(in_real + 16);
+q1_real = Operand::load_unaligned(in_real + 32);
+q2_real = Operand::load_unaligned(in_real + 48);
+q3_real = Operand::load_unaligned(in_real + 34);
+q0_imag = Operand::load_unaligned(in_imag + 16);
+q1_imag = Operand::load_unaligned(in_imag + 32);
+q2_imag = Operand::load_unaligned(in_imag + 48);
+q3_imag = Operand::load_unaligned(in_imag + 34);
+p0_real = xsimd::zip_lo(q0_real, q1_real);
+p1_real = xsimd::zip_hi(q0_real, q1_real);
+p2_real = xsimd::zip_lo(q2_real, q3_real);
+p3_real = xsimd::zip_hi(q2_real, q3_real);
+p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
+p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
+p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
+p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
+r0_real = xsimd::zip_lo(p0_real, p2_real);
+r1_real = xsimd::zip_hi(p0_real, p2_real);
+r2_real = xsimd::zip_lo(p1_real, p3_real);
+r3_real = xsimd::zip_hi(p1_real, p3_real);
+r0_imag = xsimd::zip_lo(p0_imag, p2_imag);
+r1_imag = xsimd::zip_hi(p0_imag, p2_imag);
+r2_imag = xsimd::zip_lo(p1_imag, p3_imag);
+r3_imag = xsimd::zip_hi(p1_imag, p3_imag);
+r0_real.store_unaligned(out_real + 2);
+r1_real.store_unaligned(out_real + 34);
+r2_real.store_unaligned(out_real + 18);
+r3_real.store_unaligned(out_real + 50);
+r0_imag.store_unaligned(out_imag + 2);
+r1_imag.store_unaligned(out_imag + 34);
+r2_imag.store_unaligned(out_imag + 18);
+r3_imag.store_unaligned(out_imag + 50);
+q0_real = Operand::load_unaligned(in_real + 20);
+q1_real = Operand::load_unaligned(in_real + 36);
+q2_real = Operand::load_unaligned(in_real + 52);
+q3_real = Operand::load_unaligned(in_real + 38);
+q0_imag = Operand::load_unaligned(in_imag + 20);
+q1_imag = Operand::load_unaligned(in_imag + 36);
+q2_imag = Operand::load_unaligned(in_imag + 52);
+q3_imag = Operand::load_unaligned(in_imag + 38);
+p0_real = xsimd::zip_lo(q0_real, q1_real);
+p1_real = xsimd::zip_hi(q0_real, q1_real);
+p2_real = xsimd::zip_lo(q2_real, q3_real);
+p3_real = xsimd::zip_hi(q2_real, q3_real);
+p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
+p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
+p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
+p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
+r0_real = xsimd::zip_lo(p0_real, p2_real);
+r1_real = xsimd::zip_hi(p0_real, p2_real);
+r2_real = xsimd::zip_lo(p1_real, p3_real);
+r3_real = xsimd::zip_hi(p1_real, p3_real);
+r0_imag = xsimd::zip_lo(p0_imag, p2_imag);
+r1_imag = xsimd::zip_hi(p0_imag, p2_imag);
+r2_imag = xsimd::zip_lo(p1_imag, p3_imag);
+r3_imag = xsimd::zip_hi(p1_imag, p3_imag);
+r0_real.store_unaligned(out_real + 10);
+r1_real.store_unaligned(out_real + 42);
+r2_real.store_unaligned(out_real + 26);
+r3_real.store_unaligned(out_real + 58);
+r0_imag.store_unaligned(out_imag + 10);
+r1_imag.store_unaligned(out_imag + 42);
+r2_imag.store_unaligned(out_imag + 26);
+r3_imag.store_unaligned(out_imag + 58);
+q0_real = Operand::load_unaligned(in_real + 24);
+q1_real = Operand::load_unaligned(in_real + 40);
+q2_real = Operand::load_unaligned(in_real + 56);
+q3_real = Operand::load_unaligned(in_real + 42);
+q0_imag = Operand::load_unaligned(in_imag + 24);
+q1_imag = Operand::load_unaligned(in_imag + 40);
+q2_imag = Operand::load_unaligned(in_imag + 56);
+q3_imag = Operand::load_unaligned(in_imag + 42);
+p0_real = xsimd::zip_lo(q0_real, q1_real);
+p1_real = xsimd::zip_hi(q0_real, q1_real);
+p2_real = xsimd::zip_lo(q2_real, q3_real);
+p3_real = xsimd::zip_hi(q2_real, q3_real);
+p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
+p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
+p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
+p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
+r0_real = xsimd::zip_lo(p0_real, p2_real);
+r1_real = xsimd::zip_hi(p0_real, p2_real);
+r2_real = xsimd::zip_lo(p1_real, p3_real);
+r3_real = xsimd::zip_hi(p1_real, p3_real);
+r0_imag = xsimd::zip_lo(p0_imag, p2_imag);
+r1_imag = xsimd::zip_hi(p0_imag, p2_imag);
+r2_imag = xsimd::zip_lo(p1_imag, p3_imag);
+r3_imag = xsimd::zip_hi(p1_imag, p3_imag);
+r0_real.store_unaligned(out_real + 6);
+r1_real.store_unaligned(out_real + 38);
+r2_real.store_unaligned(out_real + 22);
+r3_real.store_unaligned(out_real + 54);
+r0_imag.store_unaligned(out_imag + 6);
+r1_imag.store_unaligned(out_imag + 38);
+r2_imag.store_unaligned(out_imag + 22);
+r3_imag.store_unaligned(out_imag + 54);
+q0_real = Operand::load_unaligned(in_real + 28);
+q1_real = Operand::load_unaligned(in_real + 44);
+q2_real = Operand::load_unaligned(in_real + 60);
+q3_real = Operand::load_unaligned(in_real + 46);
+q0_imag = Operand::load_unaligned(in_imag + 28);
+q1_imag = Operand::load_unaligned(in_imag + 44);
+q2_imag = Operand::load_unaligned(in_imag + 60);
+q3_imag = Operand::load_unaligned(in_imag + 46);
+p0_real = xsimd::zip_lo(q0_real, q1_real);
+p1_real = xsimd::zip_hi(q0_real, q1_real);
+p2_real = xsimd::zip_lo(q2_real, q3_real);
+p3_real = xsimd::zip_hi(q2_real, q3_real);
+p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
+p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
+p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
+p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
+r0_real = xsimd::zip_lo(p0_real, p2_real);
+r1_real = xsimd::zip_hi(p0_real, p2_real);
+r2_real = xsimd::zip_lo(p1_real, p3_real);
+r3_real = xsimd::zip_hi(p1_real, p3_real);
+r0_imag = xsimd::zip_lo(p0_imag, p2_imag);
+r1_imag = xsimd::zip_hi(p0_imag, p2_imag);
+r2_imag = xsimd::zip_lo(p1_imag, p3_imag);
+r3_imag = xsimd::zip_hi(p1_imag, p3_imag);
+r0_real.store_unaligned(out_real + 14);
+r1_real.store_unaligned(out_real + 46);
+r2_real.store_unaligned(out_real + 30);
+r3_real.store_unaligned(out_real + 62);
+r0_imag.store_unaligned(out_imag + 14);
+r1_imag.store_unaligned(out_imag + 46);
+r2_imag.store_unaligned(out_imag + 30);
+r3_imag.store_unaligned(out_imag + 62);
+q0_real = Operand::load_unaligned(in_real + 32);
+q1_real = Operand::load_unaligned(in_real + 48);
+q2_real = Operand::load_unaligned(in_real + 64);
+q3_real = Operand::load_unaligned(in_real + 50);
+q0_imag = Operand::load_unaligned(in_imag + 32);
+q1_imag = Operand::load_unaligned(in_imag + 48);
+q2_imag = Operand::load_unaligned(in_imag + 64);
+q3_imag = Operand::load_unaligned(in_imag + 50);
+p0_real = xsimd::zip_lo(q0_real, q1_real);
+p1_real = xsimd::zip_hi(q0_real, q1_real);
+p2_real = xsimd::zip_lo(q2_real, q3_real);
+p3_real = xsimd::zip_hi(q2_real, q3_real);
+p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
+p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
+p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
+p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
+r0_real = xsimd::zip_lo(p0_real, p2_real);
+r1_real = xsimd::zip_hi(p0_real, p2_real);
+r2_real = xsimd::zip_lo(p1_real, p3_real);
+r3_real = xsimd::zip_hi(p1_real, p3_real);
+r0_imag = xsimd::zip_lo(p0_imag, p2_imag);
+r1_imag = xsimd::zip_hi(p0_imag, p2_imag);
+r2_imag = xsimd::zip_lo(p1_imag, p3_imag);
+r3_imag = xsimd::zip_hi(p1_imag, p3_imag);
+r0_real.store_unaligned(out_real + 1);
+r1_real.store_unaligned(out_real + 33);
+r2_real.store_unaligned(out_real + 17);
+r3_real.store_unaligned(out_real + 49);
+r0_imag.store_unaligned(out_imag + 1);
+r1_imag.store_unaligned(out_imag + 33);
+r2_imag.store_unaligned(out_imag + 17);
+r3_imag.store_unaligned(out_imag + 49);
+q0_real = Operand::load_unaligned(in_real + 36);
+q1_real = Operand::load_unaligned(in_real + 52);
+q2_real = Operand::load_unaligned(in_real + 68);
+q3_real = Operand::load_unaligned(in_real + 54);
+q0_imag = Operand::load_unaligned(in_imag + 36);
+q1_imag = Operand::load_unaligned(in_imag + 52);
+q2_imag = Operand::load_unaligned(in_imag + 68);
+q3_imag = Operand::load_unaligned(in_imag + 54);
+p0_real = xsimd::zip_lo(q0_real, q1_real);
+p1_real = xsimd::zip_hi(q0_real, q1_real);
+p2_real = xsimd::zip_lo(q2_real, q3_real);
+p3_real = xsimd::zip_hi(q2_real, q3_real);
+p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
+p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
+p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
+p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
+r0_real = xsimd::zip_lo(p0_real, p2_real);
+r1_real = xsimd::zip_hi(p0_real, p2_real);
+r2_real = xsimd::zip_lo(p1_real, p3_real);
+r3_real = xsimd::zip_hi(p1_real, p3_real);
+r0_imag = xsimd::zip_lo(p0_imag, p2_imag);
+r1_imag = xsimd::zip_hi(p0_imag, p2_imag);
+r2_imag = xsimd::zip_lo(p1_imag, p3_imag);
+r3_imag = xsimd::zip_hi(p1_imag, p3_imag);
+r0_real.store_unaligned(out_real + 9);
+r1_real.store_unaligned(out_real + 41);
+r2_real.store_unaligned(out_real + 25);
+r3_real.store_unaligned(out_real + 57);
+r0_imag.store_unaligned(out_imag + 9);
+r1_imag.store_unaligned(out_imag + 41);
+r2_imag.store_unaligned(out_imag + 25);
+r3_imag.store_unaligned(out_imag + 57);
+q0_real = Operand::load_unaligned(in_real + 40);
+q1_real = Operand::load_unaligned(in_real + 56);
+q2_real = Operand::load_unaligned(in_real + 72);
+q3_real = Operand::load_unaligned(in_real + 58);
+q0_imag = Operand::load_unaligned(in_imag + 40);
+q1_imag = Operand::load_unaligned(in_imag + 56);
+q2_imag = Operand::load_unaligned(in_imag + 72);
+q3_imag = Operand::load_unaligned(in_imag + 58);
+p0_real = xsimd::zip_lo(q0_real, q1_real);
+p1_real = xsimd::zip_hi(q0_real, q1_real);
+p2_real = xsimd::zip_lo(q2_real, q3_real);
+p3_real = xsimd::zip_hi(q2_real, q3_real);
+p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
+p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
+p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
+p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
+r0_real = xsimd::zip_lo(p0_real, p2_real);
+r1_real = xsimd::zip_hi(p0_real, p2_real);
+r2_real = xsimd::zip_lo(p1_real, p3_real);
+r3_real = xsimd::zip_hi(p1_real, p3_real);
+r0_imag = xsimd::zip_lo(p0_imag, p2_imag);
+r1_imag = xsimd::zip_hi(p0_imag, p2_imag);
+r2_imag = xsimd::zip_lo(p1_imag, p3_imag);
+r3_imag = xsimd::zip_hi(p1_imag, p3_imag);
+r0_real.store_unaligned(out_real + 5);
+r1_real.store_unaligned(out_real + 37);
+r2_real.store_unaligned(out_real + 21);
+r3_real.store_unaligned(out_real + 53);
+r0_imag.store_unaligned(out_imag + 5);
+r1_imag.store_unaligned(out_imag + 37);
+r2_imag.store_unaligned(out_imag + 21);
+r3_imag.store_unaligned(out_imag + 53);
+q0_real = Operand::load_unaligned(in_real + 44);
+q1_real = Operand::load_unaligned(in_real + 60);
+q2_real = Operand::load_unaligned(in_real + 76);
+q3_real = Operand::load_unaligned(in_real + 62);
+q0_imag = Operand::load_unaligned(in_imag + 44);
+q1_imag = Operand::load_unaligned(in_imag + 60);
+q2_imag = Operand::load_unaligned(in_imag + 76);
+q3_imag = Operand::load_unaligned(in_imag + 62);
+p0_real = xsimd::zip_lo(q0_real, q1_real);
+p1_real = xsimd::zip_hi(q0_real, q1_real);
+p2_real = xsimd::zip_lo(q2_real, q3_real);
+p3_real = xsimd::zip_hi(q2_real, q3_real);
+p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
+p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
+p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
+p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
+r0_real = xsimd::zip_lo(p0_real, p2_real);
+r1_real = xsimd::zip_hi(p0_real, p2_real);
+r2_real = xsimd::zip_lo(p1_real, p3_real);
+r3_real = xsimd::zip_hi(p1_real, p3_real);
+r0_imag = xsimd::zip_lo(p0_imag, p2_imag);
+r1_imag = xsimd::zip_hi(p0_imag, p2_imag);
+r2_imag = xsimd::zip_lo(p1_imag, p3_imag);
+r3_imag = xsimd::zip_hi(p1_imag, p3_imag);
+r0_real.store_unaligned(out_real + 13);
+r1_real.store_unaligned(out_real + 45);
+r2_real.store_unaligned(out_real + 29);
+r3_real.store_unaligned(out_real + 61);
+r0_imag.store_unaligned(out_imag + 13);
+r1_imag.store_unaligned(out_imag + 45);
+r2_imag.store_unaligned(out_imag + 29);
+r3_imag.store_unaligned(out_imag + 61);
+q0_real = Operand::load_unaligned(in_real + 48);
+q1_real = Operand::load_unaligned(in_real + 64);
+q2_real = Operand::load_unaligned(in_real + 80);
+q3_real = Operand::load_unaligned(in_real + 66);
+q0_imag = Operand::load_unaligned(in_imag + 48);
+q1_imag = Operand::load_unaligned(in_imag + 64);
+q2_imag = Operand::load_unaligned(in_imag + 80);
+q3_imag = Operand::load_unaligned(in_imag + 66);
+p0_real = xsimd::zip_lo(q0_real, q1_real);
+p1_real = xsimd::zip_hi(q0_real, q1_real);
+p2_real = xsimd::zip_lo(q2_real, q3_real);
+p3_real = xsimd::zip_hi(q2_real, q3_real);
+p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
+p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
+p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
+p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
+r0_real = xsimd::zip_lo(p0_real, p2_real);
+r1_real = xsimd::zip_hi(p0_real, p2_real);
+r2_real = xsimd::zip_lo(p1_real, p3_real);
+r3_real = xsimd::zip_hi(p1_real, p3_real);
+r0_imag = xsimd::zip_lo(p0_imag, p2_imag);
+r1_imag = xsimd::zip_hi(p0_imag, p2_imag);
+r2_imag = xsimd::zip_lo(p1_imag, p3_imag);
+r3_imag = xsimd::zip_hi(p1_imag, p3_imag);
+r0_real.store_unaligned(out_real + 3);
+r1_real.store_unaligned(out_real + 35);
+r2_real.store_unaligned(out_real + 19);
+r3_real.store_unaligned(out_real + 51);
+r0_imag.store_unaligned(out_imag + 3);
+r1_imag.store_unaligned(out_imag + 35);
+r2_imag.store_unaligned(out_imag + 19);
+r3_imag.store_unaligned(out_imag + 51);
+q0_real = Operand::load_unaligned(in_real + 52);
+q1_real = Operand::load_unaligned(in_real + 68);
+q2_real = Operand::load_unaligned(in_real + 84);
+q3_real = Operand::load_unaligned(in_real + 70);
+q0_imag = Operand::load_unaligned(in_imag + 52);
+q1_imag = Operand::load_unaligned(in_imag + 68);
+q2_imag = Operand::load_unaligned(in_imag + 84);
+q3_imag = Operand::load_unaligned(in_imag + 70);
+p0_real = xsimd::zip_lo(q0_real, q1_real);
+p1_real = xsimd::zip_hi(q0_real, q1_real);
+p2_real = xsimd::zip_lo(q2_real, q3_real);
+p3_real = xsimd::zip_hi(q2_real, q3_real);
+p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
+p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
+p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
+p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
+r0_real = xsimd::zip_lo(p0_real, p2_real);
+r1_real = xsimd::zip_hi(p0_real, p2_real);
+r2_real = xsimd::zip_lo(p1_real, p3_real);
+r3_real = xsimd::zip_hi(p1_real, p3_real);
+r0_imag = xsimd::zip_lo(p0_imag, p2_imag);
+r1_imag = xsimd::zip_hi(p0_imag, p2_imag);
+r2_imag = xsimd::zip_lo(p1_imag, p3_imag);
+r3_imag = xsimd::zip_hi(p1_imag, p3_imag);
+r0_real.store_unaligned(out_real + 11);
+r1_real.store_unaligned(out_real + 43);
+r2_real.store_unaligned(out_real + 27);
+r3_real.store_unaligned(out_real + 59);
+r0_imag.store_unaligned(out_imag + 11);
+r1_imag.store_unaligned(out_imag + 43);
+r2_imag.store_unaligned(out_imag + 27);
+r3_imag.store_unaligned(out_imag + 59);
+q0_real = Operand::load_unaligned(in_real + 56);
+q1_real = Operand::load_unaligned(in_real + 72);
+q2_real = Operand::load_unaligned(in_real + 88);
+q3_real = Operand::load_unaligned(in_real + 74);
+q0_imag = Operand::load_unaligned(in_imag + 56);
+q1_imag = Operand::load_unaligned(in_imag + 72);
+q2_imag = Operand::load_unaligned(in_imag + 88);
+q3_imag = Operand::load_unaligned(in_imag + 74);
+p0_real = xsimd::zip_lo(q0_real, q1_real);
+p1_real = xsimd::zip_hi(q0_real, q1_real);
+p2_real = xsimd::zip_lo(q2_real, q3_real);
+p3_real = xsimd::zip_hi(q2_real, q3_real);
+p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
+p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
+p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
+p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
+r0_real = xsimd::zip_lo(p0_real, p2_real);
+r1_real = xsimd::zip_hi(p0_real, p2_real);
+r2_real = xsimd::zip_lo(p1_real, p3_real);
+r3_real = xsimd::zip_hi(p1_real, p3_real);
+r0_imag = xsimd::zip_lo(p0_imag, p2_imag);
+r1_imag = xsimd::zip_hi(p0_imag, p2_imag);
+r2_imag = xsimd::zip_lo(p1_imag, p3_imag);
+r3_imag = xsimd::zip_hi(p1_imag, p3_imag);
+r0_real.store_unaligned(out_real + 7);
+r1_real.store_unaligned(out_real + 39);
+r2_real.store_unaligned(out_real + 23);
+r3_real.store_unaligned(out_real + 55);
+r0_imag.store_unaligned(out_imag + 7);
+r1_imag.store_unaligned(out_imag + 39);
+r2_imag.store_unaligned(out_imag + 23);
+r3_imag.store_unaligned(out_imag + 55);
+q0_real = Operand::load_unaligned(in_real + 60);
+q1_real = Operand::load_unaligned(in_real + 76);
+q2_real = Operand::load_unaligned(in_real + 92);
+q3_real = Operand::load_unaligned(in_real + 78);
+q0_imag = Operand::load_unaligned(in_imag + 60);
+q1_imag = Operand::load_unaligned(in_imag + 76);
+q2_imag = Operand::load_unaligned(in_imag + 92);
+q3_imag = Operand::load_unaligned(in_imag + 78);
+p0_real = xsimd::zip_lo(q0_real, q1_real);
+p1_real = xsimd::zip_hi(q0_real, q1_real);
+p2_real = xsimd::zip_lo(q2_real, q3_real);
+p3_real = xsimd::zip_hi(q2_real, q3_real);
+p0_imag = xsimd::zip_lo(q0_imag, q1_imag);
+p1_imag = xsimd::zip_hi(q0_imag, q1_imag);
+p2_imag = xsimd::zip_lo(q2_imag, q3_imag);
+p3_imag = xsimd::zip_hi(q2_imag, q3_imag);
+r0_real = xsimd::zip_lo(p0_real, p2_real);
+r1_real = xsimd::zip_hi(p0_real, p2_real);
+r2_real = xsimd::zip_lo(p1_real, p3_real);
+r3_real = xsimd::zip_hi(p1_real, p3_real);
+r0_imag = xsimd::zip_lo(p0_imag, p2_imag);
+r1_imag = xsimd::zip_hi(p0_imag, p2_imag);
+r2_imag = xsimd::zip_lo(p1_imag, p3_imag);
+r3_imag = xsimd::zip_hi(p1_imag, p3_imag);
+r0_real.store_unaligned(out_real + 15);
+r1_real.store_unaligned(out_real + 47);
+r2_real.store_unaligned(out_real + 31);
+r3_real.store_unaligned(out_real + 63);
+r0_imag.store_unaligned(out_imag + 15);
+r1_imag.store_unaligned(out_imag + 47);
+r2_imag.store_unaligned(out_imag + 31);
+r3_imag.store_unaligned(out_imag + 63);
 }

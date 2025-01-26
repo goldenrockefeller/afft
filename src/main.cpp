@@ -131,16 +131,12 @@ int main() {
             interleave_bitreversal(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, YY.data(), YY.data()+transformLen, transformLen, bit_reversed_indexes.data());
         });
 
-        bench.run("Restrict Double Interleave", [&]() {
-            r_interleave_bitreversal(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, YY.data(), YY.data()+transformLen, transformLen, bit_reversed_indexes.data());
+        bench.run("interleave_bitreversal_single_pass", [&]() {
+            interleave_bitreversal_single_pass(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen, bit_reversed_indexes.data());
         });
 
-        bench.run("id_interleave_bitreversal", [&]() {
-            id_interleave_bitreversal(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, YY.data(), YY.data()+transformLen, transformLen, bit_reversed_indexes.data());
-        });
-
-        bench.run("recursive_bitreversal", [&]() {
-            recursive_bitreversal(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen, 1);
+        bench.run("interleave_bitreversal_single_pass_unrolled64", [&]() {
+            interleave_bitreversal_single_pass_unrolled64(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen);
         });
 
         bench.run("interleave_bitreversal_unrolled64", [&]() {
