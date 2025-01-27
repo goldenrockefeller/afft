@@ -40,12 +40,10 @@ Prototype
   
 ## Investigating
 - Cache-oblivious order of bit-reversal reorder (medium and large size, compare to COBRA)
-- Breaking out Bit-reversal algorithm as a template parameter to the FFT
 - In-place operation of main radix-4 and radix-2 loops
 - According to Ryg's blog, use FMA more efficient for radix-2 (and maybe radix-4)
 - radix 2^2, 2^3, 2^3, etc to minimize the ratio of loads and stores to actual computation
 - Recursive, Cache-oblivious FFTs
-- Main FFT stages performed in-place
 
 ## Inspiration and lessons
 - [Python Prototype](https://github.com/goldenrockefeller/fft-prototype)
