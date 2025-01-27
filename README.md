@@ -32,7 +32,7 @@ Prototype
 - Manually Unrolling the main radix-4 and radix-2 loops does not give much speed up.
 - Compiling with Clang gives 5% to 20% speed up over compiling with MSVC or GCC (on Windows, Intel i7-12700)
 - Skipping Bit-reversal in convolution is more performant
-- Theoretical, Stockham method means no bit-reversal, but adds to each stage of the algorithm. Right now, it is not worth changing the entire algorithm to find out. Additionally, Stockham requires multiple variations SIMD interweave operations, (e.g. interweave every other sample, every other two samples, etc....). This could potentially make relying  Stockham less portable, or more complicated.
+- Theoretically, Stockham method means no bit-reversal, but adds interleaving to each stage of the algorithm. Right now, it is not worth changing the entire algorithm to find out. Additionally, Stockham requires multiple variations SIMD interleave operations, (e.g. interweave every other sample, every other two samples, etc....). This could potentially make relying  Stockham less portable, or more complicated.
 -  Index arithmetic with SIMD instructions is NOT performative
 -  Single-pass bitreversal is the fastest. I should aim to minimize the ratio of loads and stores to actual computation, and avoid using work pointer
 -  Manual loop unrolling doesn't always speed up code. For simplicity, I should aim to do 16 interleave? operations per loop. And x? math operations per loop
