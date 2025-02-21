@@ -25,7 +25,7 @@ struct OperandSpec{
 #include "afft/bit_reversal_prototypes.hpp"
 
 int main() {
-    constexpr std::size_t transformLen = 1 << 6;
+    constexpr std::size_t transformLen = 1 << 19;
     // 256, double, double, forward
     // 512, double, double, forward
     // 32, double, AVX, forward
@@ -36,7 +36,7 @@ int main() {
     PGFFT pgfft(transformLen);
     kiss_fft_cfg cfg=kiss_fft_alloc(transformLen,0,NULL,NULL);
 
-    auto bit_reversed_indexes = afft::bit_reversed_indexes(transformLen);
+    auto bit_reversed_indexes_ = bit_reversed_indexes(transformLen);
     
     double *X = (double*)pffftd_aligned_malloc(transformLen * 2 * sizeof(double));  /* complex: re/im interleaved */
     double *Y = (double*)pffftd_aligned_malloc(transformLen * 2 * sizeof(double));  /* complex: re/im interleaved */
@@ -98,6 +98,32 @@ int main() {
 
     cout << PGFFT::simd_enabled() << endl;
 
+    // std::vector<std::size_t> trials = {16, 32, 64, 128, 256, 512, 1024};
+    // for (auto n_indexes : trials){
+    //     cout << "Trial: " << n_indexes << endl;
+    //     auto plan = get_bit_rev_perm_plan(n_indexes, 4);
+
+    //     std::vector<double, xsimd::aligned_allocator<double, 128>> real_vals(n_indexes);
+    //     std::vector<double, xsimd::aligned_allocator<double, 128>> imag_vals(n_indexes);
+
+    //     for (std::size_t i = 0; i < n_indexes; i++) {
+    //         real_vals[i] = double(i);
+    //         imag_vals[i] = - double(i);
+    //     }
+
+    //     cache_oblivious_bit_reversal_permutation<double, Double4Spec>(real_vals.data(), imag_vals.data(), plan);
+        
+    //     for (const auto& val : real_vals) {
+    //         cout << val << " ";
+    //     }
+    //     cout << endl << "-----------" << endl;
+    //     for (const auto& val : imag_vals) {
+    //         cout << val << " ";
+    //     }
+    //     cout << endl << "-----------" << endl;
+    // }
+
+
     int N = transformLen;
     const int order=(int)(std::log((double)N)/std::log(2.0));
 
@@ -114,38 +140,40 @@ int main() {
         auto YY =std::vector<double, xsimd::aligned_allocator<double, 128>>(transformLen * 2);
 
         auto ot_fft = OTFFT::Factory::createComplexFFT(N);
+        auto plan = get_bit_rev_perm_plan(transformLen, 4);
 
         // bench.run("Kiss", [&]() {
         //     kiss_fft( cfg , (kiss_fft_cpx*) x ,  (kiss_fft_cpx*) y );
         // });
 
         bench.run("Standard Reversal", [&]() {
-            standard_bitreversal(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen, bit_reversed_indexes.data());
+            standard_bitreversal(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen, bit_reversed_indexes_.data());
         });
 
-        bench.run("Restrict Standard Reversal", [&]() {
-            r_standard_bitreversal(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen, bit_reversed_indexes.data());
-        });
-
-        bench.run("Double Interleave", [&]() {
-            interleave_bitreversal(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, YY.data(), YY.data()+transformLen, transformLen, bit_reversed_indexes.data());
-        });
-
+        
         bench.run("interleave_bitreversal_single_pass", [&]() {
-            interleave_bitreversal_single_pass(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen, bit_reversed_indexes.data());
+            interleave_bitreversal_single_pass(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen, bit_reversed_indexes_.data());
         });
 
-        bench.run("interleave_bitreversal_single_pass_unrolled64", [&]() {
-            interleave_bitreversal_single_pass_unrolled64(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen);
+        bench.run("cache_oblivious_bit_reversal_permutation", [&]() {
+            cache_oblivious_bit_reversal_permutation<double, Double4Spec>(XX.data(), XX.data()+transformLen, plan);
         });
 
-        bench.run("interleave_bitreversal_unrolled64", [&]() {
-            interleave_bitreversal_unrolled64(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen,YY.data(), YY.data()+transformLen, transformLen, bit_reversed_indexes.data());
-        });
+        std::size_t log_len_ = int_log_2(transformLen);
+        std::size_t pgfft_brc_thresh = 15;
+        std::size_t pgfft_brc_q = 7;
+        auto log_reversal_len_ = log_len_ * std::size_t(log_len_ < pgfft_brc_thresh)
+            + (log_len_ - 2 * pgfft_brc_q) 
+            * std::size_t(log_len_ >= pgfft_brc_thresh);
+               
+        auto bit_reversed_indexes__ = bit_reversed_indexes(1 << log_reversal_len_);
+        auto bit_reversed_indexes_2_ = bit_reversed_indexes(1L << std::min(pgfft_brc_q, log_len_));
 
-        bench.run("bitreversal64_unrolled", [&]() {
-            bitreversal64_unrolled(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
-        });
+        if (log_len_ >= pgfft_brc_thresh) {
+            bench.run("cobra", [&]() {
+                cobra<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, YY.data(),  YY.data()+transformLen, bit_reversed_indexes__, bit_reversed_indexes_2_, log_reversal_len_);
+            });
+        }
 
         std::cout << XX[6] << std::endl;
     
