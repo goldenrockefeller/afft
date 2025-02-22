@@ -37,7 +37,7 @@ Prototype
 -  Single-pass bitreversal is the fastest. I should aim to minimize the ratio of loads and stores to actual computation and avoid using work pointer
 -  Manual loop unrolling doesn't always speed up code. For simplicity, I aim to do 16 interleave operations per loop. And x? math operations per loop
 -  Six-stage or Four-stage fft may replace the bit-reversal with at least 1 transpose phase. Since I am not looking at very large datasets for real-time audio processing, I doubt further investigation into this will be worth it.
--  Cache-oblivious bit reversal permutation is significantly faster than my previous COBRA implementation on <2^22. After that, COBRA is slightly faster, probably due to a more regular access pattern that make it easier for hardware prefetchers to predict what next to access from memory. I suspect that prefetching multiple cache lines instead of just 1 can improve performance for cache-oblivious bit reversal, but that is not a priority task given my objectives.
+-  Cache-oblivious bit reversal permutation is significantly faster than my previous COBRA implementation on <2^22. After that, COBRA is slightly faster. This might be because the data no longer fits in my L3 cache and COBRA has a more regular access pattern, and/or also doesn't need to load a bit reversal permutation plan.
   
 ## Investigating
 
