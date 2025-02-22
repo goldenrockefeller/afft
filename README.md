@@ -34,10 +34,10 @@ Prototype
 - Skipping Bit-reversal in convolution is more performant when not using SIMD, but trickier when using SIMD without deinterleave instructions. Estimated savings of 15% - 30%. 
 - Theoretically, Stockham method means no bit-reversal, but adds interleaving to each stage of the algorithm. Right now, it is not worth changing the entire algorithm to find out. Additionally, Stockham requires multiple variations SIMD interleave operations, (e.g. interweave every other sample, every other two samples, etc....). This could potentially make relying  Stockham less portable, or more complicated.
 -  Index arithmetic with SIMD instructions is NOT performative
--  Single-pass bitreversal is the fastest. I should aim to minimize the ratio of loads and stores to actual computation, and avoid using work pointer
--  Manual loop unrolling doesn't always speed up code. For simplicity, I should aim to do 16 interleave? operations per loop. And x? math operations per loop
+-  Single-pass bitreversal is the fastest. I should aim to minimize the ratio of loads and stores to actual computation and avoid using work pointer
+-  Manual loop unrolling doesn't always speed up code. For simplicity, I aim to do 16 interleave operations per loop. And x? math operations per loop
 -  Six-stage or Four-stage fft may replace the bit-reversal with at least 1 transpose phase. Since I am not looking at very large datasets for real-time audio processing, I doubt further investigation into this will be worth it.
--  Cache-oblivious bit reversal permutation is significantly faster than my previous COBRA implementation.
+-  Cache-oblivious bit reversal permutation is significantly faster than my previous COBRA implementation on <2^22. After that, COBRA is slightly faster, probably due to a more regular access pattern that make it easier for hardware prefetchers to predict what next to access from memory. I suspect that prefetching multiple cache lines instead of just 1 can improve performance for cache-oblivious bit reversal, but that is not a priority task given my objectives.
   
 ## Investigating
 
