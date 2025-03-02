@@ -38,12 +38,10 @@ Prototype
 -  Manual loop unrolling doesn't always speed up code. For simplicity, I aim to do 16 interleave operations per loop. And x? math operations per loop
 -  Six-stage or Four-stage fft may replace the bit-reversal with at least 1 transpose phase. Since I am not looking at very large datasets for real-time audio processing, I doubt further investigation into this will be worth it.
 -  Cache-oblivious bit reversal permutation is significantly faster than my previous COBRA implementation on <2^22. After that, COBRA is slightly faster. This might be because the data no longer fits in my L3 cache and COBRA has a more regular access pattern, and/or also doesn't need to load a bit reversal permutation plan.
+-  For radix-2-fma is about the same speed as radix-2-nofma,  radix-4-fma is faster than  radix-4-nofma is faster than radix-2-fma 
+-  Only use radix-4 or radix-2! radix-4-fma is nearly twice as fast as radix-2-fma, Avoiding loads matters. radix-4-fma is faster than radix-8-fma. radix-4-fma + radix-2-fma is faster than radix-8-fma.
   
 ## Investigating
-
-- In-place operation of main radix-4 and radix-2 loops
-- According to Ryg's blog, use FMA more efficient for radix-2 (and maybe radix-4)
-- radix 2^2, 2^3, 2^3, etc to minimize the ratio of loads and stores to actual computation
 - Recursive, Cache-oblivious FFTs
 
 ## Inspiration and lessons
