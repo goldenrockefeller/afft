@@ -16,8 +16,9 @@ Prototype
 
 ## Implementation
 - Expects different arrays for real and imaginary numbers (not directly supporting interweaved input, not direction support array or complex numbers)
-- Cooley-Tukey (mixed radix of 2 and 4)
-- Possible to add SIMD-enabled bit-reversal (implement for AVX-double for now)
+- Cooley-Tukey (mixed radix of 2 and 4) Optimized for Fused-Multiply-Add 
+- Fast Cache-Oblivious SIMD-enabled bit reversal permutation
+- Decimation in Time
   
 ## Investigated
 - While not benchmarked, Radix-8 and split radix is possibly not worth the effort.
@@ -40,6 +41,7 @@ Prototype
 -  Cache-oblivious bit reversal permutation is significantly faster than my previous COBRA implementation on <2^22. After that, COBRA is slightly faster. This might be because the data no longer fits in my L3 cache and COBRA has a more regular access pattern, and/or also doesn't need to load a bit reversal permutation plan.
 -  For radix-2-fma is about the same speed as radix-2-nofma,  radix-4-fma is faster than  radix-4-nofma is faster than radix-2-fma 
 -  Only use radix-4 or radix-2! radix-4-fma is nearly twice as fast as radix-2-fma, Avoiding loads matters. radix-4-fma is faster than radix-8-fma. radix-4-fma + radix-2-fma is faster than radix-8-fma.
+-  The cost of going from radix-4-fma to radix-4 is about 20-30%. radix-4-fma is well suited to DIT, not DIF. This means that a convolution algorithm that tries to skip the bit reversal permutation (about 25% cost) with DIF/DIT combo, may not gain much performance since it has to sacrifice about 20-30% on the DIF part of the convolution.
   
 ## Investigating
 - Recursive, Cache-oblivious FFTs
