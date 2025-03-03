@@ -16,7 +16,8 @@ Prototype
 
 ## Implementation
 - Expects different arrays for real and imaginary numbers (not directly supporting interweaved input, not direction support array or complex numbers)
-- Cooley-Tukey (mixed radix of 2 and 4) Optimized for Fused-Multiply-Add 
+- Cooley-Tukey (mixed radix of 2 and 4)
+- Optimized for Fused-Multiply-Add 
 - Fast Cache-Oblivious SIMD-enabled bit reversal permutation
 - Decimation in Time
   
