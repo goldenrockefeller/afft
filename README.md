@@ -15,7 +15,7 @@ Prototype
 - Liberal license
 
 ## Implementation
-- Expects different arrays for real and imaginary numbers (not directly supporting interweaved input, not direction support array or complex numbers)
+- Expects different arrays for real and imaginary numbers (for now) (not directly supporting interweaved input, not direction support array or complex numbers)
 - Cooley-Tukey (mixed radix of 2 and 4)
 - Optimized for Fused-Multiply-Add 
 - Fast Cache-Oblivious SIMD-enabled bit reversal permutation
@@ -40,9 +40,11 @@ Prototype
 -  Manual loop unrolling doesn't always speed up code. For simplicity, I aim to do 16 interleave operations per loop. And x? math operations per loop
 -  Six-stage or Four-stage fft may replace the bit-reversal with at least 1 transpose phase. Since I am not looking at very large datasets for real-time audio processing, I doubt further investigation into this will be worth it.
 -  Cache-oblivious bit reversal permutation is significantly faster than my previous COBRA implementation on <2^22. After that, COBRA is slightly faster. This might be because the data no longer fits in my L3 cache and COBRA has a more regular access pattern, and/or also doesn't need to load a bit reversal permutation plan.
--  For radix-2-fma is about the same speed as radix-2-nofma,  radix-4-fma is faster than  radix-4-nofma is faster than radix-2-fma 
+-  Non-fma is faster than the 6 operation fma trick from Ryg blog.
 -  Only use radix-4 or radix-2! radix-4-fma is nearly twice as fast as radix-2-fma, Avoiding loads matters. radix-4-fma is faster than radix-8-fma. radix-4-fma + radix-2-fma is faster than radix-8-fma.
--  The cost of going from radix-4-fma to radix-4 is about 20-30%. radix-4-fma is well suited to DIT, not DIF. This means that a convolution algorithm that tries to skip the bit reversal permutation (about 25% cost) with DIF/DIT combo, may not gain much performance since it has to sacrifice about 20-30% on the DIF part of the convolution.
+-  It is possible to operate on complex numbers by interleaving and deinterleaving in the first and last steps.  I will not be doing that at this time. 
+-  It is possible to improve performance further by combining the bit-reversal-permutation stage with the first butterfly stage to reduce the number of loads and stores. I will not be doing that at this time. 
+-  The plan following has a small overhead (for loop containing a switch statement). It is possible to remove this overhead by pregenerating/hardcoding the end-to-end FFT plan for each length. I will not be doing that at this time.
   
 ## Investigating
 - Recursive, Cache-oblivious FFTs
