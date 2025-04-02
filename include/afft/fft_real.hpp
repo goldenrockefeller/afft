@@ -4,16 +4,16 @@
 #include "afft/fft_complex.hpp"
 
 namespace afft{
-    template <typename vector_t>
-    vector_t bit_reversed_order(vector_t input){
+    template <typename Vector>
+    Vector bit_reversed_order(Vector input){
         auto bit_reversed_indexes_ = bit_reversed_indexes(input.size());
-        vector_t bit_reversed_order(input.size());
+        Vector bit_reversed_order_(input.size());
 
         for (std::size_t i = 0; i < input.size(); i++) {
-            bit_reversed_order[i] = input[bit_reversed_indexes_[i]];
+            bit_reversed_order_[i] = input[bit_reversed_indexes_[i]];
         }
 
-        return bit_reversed_order;
+        return bit_reversed_order_;
     }
 
     template<

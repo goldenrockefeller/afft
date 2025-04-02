@@ -13,7 +13,6 @@
 #include <random>
 #include "otfft.h"
 
-
 using namespace std;
 using namespace afft;
 
@@ -23,9 +22,10 @@ struct OperandSpec{
 };
 
 #include "afft/bit_reversal_prototypes.hpp"
+#include "afft/radix_primitives.hpp"
 
 int main() {
-    constexpr std::size_t transformLen = 1 << 19;
+    constexpr std::size_t transformLen = 1 << 6;
     // 256, double, double, forward
     // 512, double, double, forward
     // 32, double, AVX, forward
@@ -95,7 +95,7 @@ int main() {
     }
 
     cout << diff << endl;
-
+ 
     cout << PGFFT::simd_enabled() << endl;
 
     // std::vector<std::size_t> trials = {16, 32, 64, 128, 256, 512, 1024};
@@ -136,7 +136,7 @@ int main() {
         bench.minEpochIterations(10);
 
         auto XX = std::vector<double, xsimd::aligned_allocator<double, 128>>(transformLen * 2);
-        auto ZZ =std::vector<double, xsimd::aligned_allocator<double, 128>>(transformLen * 2);
+        auto ZZ =std::vector<double, xsimd::aligned_allocator<double, 128>>(transformLen * 2 *2);
         auto YY =std::vector<double, xsimd::aligned_allocator<double, 128>>(transformLen * 2);
 
         auto ot_fft = OTFFT::Factory::createComplexFFT(N);
@@ -175,8 +175,86 @@ int main() {
             });
         }
 
+        auto bit_reversed_indexes_16 = bit_reversed_indexes(16);
+
+        bench.run("interleave_bitreversal_single_pass_by_16", [&]() {
+            interleave_bitreversal_single_pass_by_16(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen, bit_reversed_indexes_16.data());
+        });
+
         std::cout << XX[6] << std::endl;
     
+    }
+
+    
+
+    {
+        ankerl::nanobench::Bench bench;
+        ostringstream title_stream;
+        title_stream << "Radix, Size: " << transformLen;
+        bench.title(title_stream.str());
+
+        bench.minEpochIterations(10);
+
+        auto XX = std::vector<double, xsimd::aligned_allocator<double, 128>>(transformLen * 2);
+        auto ZZ = std::vector<double, xsimd::aligned_allocator<double, 128>>(transformLen * 2);
+        auto YY = std::vector<double, xsimd::aligned_allocator<double, 128>>(transformLen * 2);
+
+        bench.run("base_radix_8_fma", [&]() {
+            base_radix_8_fma<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+            base_radix_8_fma<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+        });
+
+        bench.run("base_radix_2_fma", [&]() {
+            base_radix_2_fma<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+            base_radix_2_fma<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+            base_radix_2_fma<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+            base_radix_2_fma<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+            base_radix_2_fma<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+            base_radix_2_fma<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+        });
+
+        bench.run("base_radix_2", [&]() {
+            base_radix_2<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+            base_radix_2<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+            base_radix_2<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+            base_radix_2<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+            base_radix_2<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+            base_radix_2<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+        });
+
+        bench.run("base_radix_4_fma", [&]() {
+            base_radix_4_fma<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+            base_radix_4_fma<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+            base_radix_4_fma<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+        });
+
+        bench.run("base_radix_4", [&]() {
+            base_radix_4<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+            base_radix_4<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+            base_radix_4<double, Double4Spec>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, transformLen);
+        });
+
+        bench.run("do_radix4_ditime_regular_core_stage", [&]() {
+            do_radix4_ditime_regular_core_stage<double, Double4Spec, false>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, 0, transformLen/16, 4, 0, 4);
+            do_radix4_ditime_regular_core_stage<double, Double4Spec, false>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, 0, transformLen/16, 4, 0, 4);
+            do_radix4_ditime_regular_core_stage<double, Double4Spec, false>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, 0, transformLen/16, 4, 0, 4);
+        });
+
+
+        bench.run("do_radix4_ditime_regular_core_oop_stage", [&]() {
+            do_radix4_ditime_regular_core_oop_stage<double, Double4Spec, false>(XX.data(), XX.data()+transformLen, YY.data(), YY.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, 0, transformLen/16, 4, 0, 4);
+            do_radix4_ditime_regular_core_oop_stage<double, Double4Spec, false>(XX.data(), XX.data()+transformLen, YY.data(), YY.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, 0, transformLen/16, 4, 0, 4);
+            do_radix4_ditime_regular_core_oop_stage<double, Double4Spec, false>(XX.data(), XX.data()+transformLen, YY.data(), YY.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, 0, transformLen/16, 4, 0, 4);
+        });
+        
+
+        bench.run("do_radix4_difreq_regular_core_stage", [&]() {
+            do_radix4_difreq_regular_core_stage<double, Double4Spec, true>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, 0, transformLen/16, 4, 0, 4);
+            do_radix4_difreq_regular_core_stage<double, Double4Spec, true>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, 0, transformLen/16, 4, 0, 4);
+            do_radix4_difreq_regular_core_stage<double, Double4Spec, true>(XX.data(), XX.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, ZZ.data(), ZZ.data()+transformLen, 0, transformLen/16, 4, 0, 4);
+        });    
+
+        std::cout << XX[6] << std::endl;
     }
 
     // Spec and working buffers

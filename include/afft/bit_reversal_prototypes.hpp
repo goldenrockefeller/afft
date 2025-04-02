@@ -1,5 +1,8 @@
 //Analyze Clang vs GCC vs MSVC output
 
+
+
+
 void standard_bitreversal(double* out_real, double* out_imag, double* in_real, double* in_imag, std::size_t len, std::size_t* bit_reversed_indexes) {
     for (
         std::size_t new_index = 0;
@@ -13,7 +16,7 @@ void standard_bitreversal(double* out_real, double* out_imag, double* in_real, d
     }
 }
 
-void interleave_bitreversal_single_pass(double* out_real, double* out_imag, double* in_real, double* in_imag, std::size_t len, std::size_t* bit_reversed_indexes) {
+void inline interleave_bitreversal_single_pass(double* out_real, double* out_imag, double* in_real, double* in_imag, std::size_t len, const std::size_t* bit_reversed_indexes) {
     // On len 64, "unrolling" instead of using lookup table gives 15% performance boost, (save 1 to 2 ns)
     
     using Operand = xsimd::batch<double, xsimd::avx>;
@@ -110,6 +113,12 @@ void interleave_bitreversal_single_pass(double* out_real, double* out_imag, doub
     }
 }
 
+void interleave_bitreversal_single_pass_by_16(double* out_real, double* out_imag, double* in_real, double* in_imag, std::size_t len, const std::size_t* bit_reversed_indexes_16) {
+    for (std::size_t i = 0; i < len; i+=16) {
+        interleave_bitreversal_single_pass(out_real + i, out_imag + i, in_real + i, in_imag + i, 16, bit_reversed_indexes_16);
+    }
+}
+
 // TODO : Math common functions file
 inline std::size_t int_log_2b(std::size_t n) {
     if (n == 0) {
@@ -123,7 +132,165 @@ inline std::size_t int_log_2b(std::size_t n) {
     return res - 1;
 }
 
+template<std::size_t arr_size>
+inline void copy_size_t_array(std::size_t* dest_arr, const std::size_t* src_arr) {
+    dest_arr[arr_size - 1] = src_arr[arr_size - 1];
+    copy_size_t_array<arr_size - 1>(dest_arr, src_arr); 
+}
 
+template<>
+inline void copy_size_t_array<1>(std::size_t* dest_arr, const std::size_t* src_arr) {
+    dest_arr[0] = src_arr[0];
+}
+
+template<typename Sample, typename OperandSpec, std::size_t arr_size>
+struct LoadOperandsWithOffset{
+    using Operand = typename OperandSpec::Value;
+    static inline void call(Operand* dest_arr, const Sample* src_arr,  const std::size_t* offsets) {
+        OperandSpec::load(src_arr + offsets[arr_size - 1], dest_arr[arr_size - 1]);
+        LoadOperandsWithOffset<Sample, OperandSpec, arr_size - 1>::call(dest_arr, src_arr, offsets); 
+    }
+};
+
+template<typename Sample, typename OperandSpec>
+struct LoadOperandsWithOffset<Sample, OperandSpec, 1>{
+    using Operand = typename OperandSpec::Value;
+    static inline void call (Operand* dest_arr, const Sample* src_arr,  const std::size_t* offsets) {
+        OperandSpec::load(src_arr + offsets[0], dest_arr[0]);
+    }
+};
+
+template<typename Sample, typename OperandSpec, std::size_t arr_size>
+struct StoreOperandsWithOffset{
+    using Operand = typename OperandSpec::Value;
+    static inline void call (Sample* dest_arr, const Operand* src_arr,  const std::size_t* offsets) {
+        OperandSpec::store(dest_arr + offsets[arr_size - 1], src_arr[arr_size - 1]);
+        StoreOperandsWithOffset<Sample, OperandSpec, arr_size - 1>::call(dest_arr, src_arr, offsets); 
+    }
+};
+
+template<typename Sample, typename OperandSpec>
+struct StoreOperandsWithOffset<Sample, OperandSpec, 1>{
+    using Operand = typename OperandSpec::Value;
+    static inline void call (Sample* dest_arr, const Operand* src_arr,  const std::size_t* offsets) {
+        OperandSpec::store(dest_arr + offsets[0], src_arr[0]);
+    }
+};
+
+
+
+template<typename Sample, typename OperandSpec, std::size_t arr_size>
+struct Interleave{
+    using Operand = typename OperandSpec::Value;
+    static inline void call (Operand* arr_a, Operand* arr_b) {
+        constexpr std::size_t half_n_samples_per_operand = sizeof(Operand) / sizeof(Sample) / 2;
+        constexpr std::size_t half_arr_size = arr_size / 2;
+        OperandSpec::interleave(arr_a[arr_size-2], arr_a[arr_size-1], arr_b[half_arr_size - 1], arr_b[half_arr_size - 1 + half_n_samples_per_operand]);
+        Interleave<Sample, OperandSpec, arr_size - 2>::call(arr_a, arr_b);
+    }
+};
+
+template<typename Sample, typename OperandSpec>
+struct Interleave<Sample, OperandSpec, 2>{
+    using Operand = typename OperandSpec::Value;
+    static inline void call (Operand* arr_a, const Operand* arr_b) {
+        constexpr std::size_t half_n_samples_per_operand = sizeof(Operand) / sizeof(Sample) / 2;
+        OperandSpec::interleave(arr_a[0], arr_a[1], arr_b[0], arr_b[half_n_samples_per_operand]);
+    }
+};
+
+template<typename Sample, typename OperandSpec>
+struct Interleave<Sample, OperandSpec, 1>{
+    using Operand = typename OperandSpec::Value;
+    static inline void call(Operand* arr_a, const Operand* arr_b) {
+        // Do Nothing
+    }
+};
+
+template<typename Sample, typename OperandSpec, std::size_t arr_size, std::size_t interleave_factor>
+struct ComputeTranspose{
+    using Operand = typename OperandSpec::Value;
+    static inline void call (Operand* arr_a, Operand* arr_b) {
+        Interleave<Sample, OperandSpec, arr_size>::call(arr_a, arr_b);
+        ComputeTranspose<Sample, OperandSpec, arr_size, interleave_factor / 2>::call(arr_b, arr_a);
+    }
+};
+
+template<typename Sample, typename OperandSpec, std::size_t arr_size>
+struct ComputeTranspose<Sample, OperandSpec, arr_size, 1>{
+    using Operand = typename OperandSpec::Value;
+    static inline void call (Operand* arr_a, Operand* arr_b) {
+        Interleave<Sample, OperandSpec, arr_size>::call(arr_a, arr_b);
+    }
+};
+
+template<typename OperandSpec, std::size_t alternate_factor>
+struct AlternateOut{
+    using Operand = typename OperandSpec::Value;
+    static inline const Operand* call (const Operand* arr_a, const Operand* arr_b) {
+        return AlternateOut<OperandSpec, alternate_factor / 2>::call(arr_b, arr_a);
+    }
+};
+
+template<typename OperandSpec>
+struct AlternateOut<OperandSpec, 1>{
+    using Operand = typename OperandSpec::Value;
+    static inline const Operand* call (const Operand* arr_a, const Operand* arr_b) {
+        return arr_a;
+    }
+};
+
+template<typename Sample, typename OperandSpec>
+static inline void transpose_diagonal(double* real, double* imag, const std::size_t* indexes) {
+    using Operand = typename OperandSpec::Value;
+    constexpr std::size_t n_samples_per_operand = sizeof(Operand) / sizeof(Sample);
+
+    Operand row_x[n_samples_per_operand];
+    Operand row_y[n_samples_per_operand];
+    Operand row_u[n_samples_per_operand];
+    Operand row_v[n_samples_per_operand];
+
+    std::size_t ind[n_samples_per_operand];
+    copy_size_t_array<n_samples_per_operand>(ind, indexes);
+
+    LoadOperandsWithOffset<Sample, OperandSpec, n_samples_per_operand>::call(row_x, real, ind);
+    LoadOperandsWithOffset<Sample, OperandSpec, n_samples_per_operand>::call(row_u, imag, ind);
+    ComputeTranspose<Sample, OperandSpec, n_samples_per_operand, n_samples_per_operand>::call(row_y, row_x);
+    ComputeTranspose<Sample, OperandSpec, n_samples_per_operand, n_samples_per_operand>::call(row_v, row_u);
+    StoreOperandsWithOffset<Sample, OperandSpec, n_samples_per_operand>::call(real, AlternateOut<OperandSpec, n_samples_per_operand>::call(row_x, row_y), ind);
+    StoreOperandsWithOffset<Sample, OperandSpec, n_samples_per_operand>::call(imag, AlternateOut<OperandSpec, n_samples_per_operand>::call(row_u, row_v), ind);
+}
+
+template<typename Sample, typename OperandSpec>
+static inline void transpose_off_diagonal(Sample* real, Sample* imag, const std::size_t* indexes) {
+    using Operand = typename OperandSpec::Value;
+    constexpr std::size_t n_samples_per_operand = sizeof(Operand) / sizeof(Sample);
+
+    Operand row_x[n_samples_per_operand];
+    Operand row_u[n_samples_per_operand];
+    Operand row_y[n_samples_per_operand];
+    Operand row_v[n_samples_per_operand];
+
+    std::size_t ind_xy[n_samples_per_operand];
+    std::size_t ind_uv[n_samples_per_operand];
+
+    copy_size_t_array<n_samples_per_operand>(ind_xy, indexes);
+    copy_size_t_array<n_samples_per_operand>(ind_uv, indexes + n_samples_per_operand);
+
+    LoadOperandsWithOffset<Sample, OperandSpec, n_samples_per_operand>::call(row_x, real, ind_xy);
+    LoadOperandsWithOffset<Sample, OperandSpec, n_samples_per_operand>::call(row_u, real, ind_uv);
+    ComputeTranspose<Sample, OperandSpec, n_samples_per_operand, n_samples_per_operand>::call(row_y, row_x);
+    ComputeTranspose<Sample, OperandSpec, n_samples_per_operand, n_samples_per_operand>::call(row_v, row_u);
+    StoreOperandsWithOffset<Sample, OperandSpec, n_samples_per_operand>::call(real, AlternateOut<OperandSpec, n_samples_per_operand>::call(row_x, row_y), ind_uv);
+    StoreOperandsWithOffset<Sample, OperandSpec, n_samples_per_operand>::call(real, AlternateOut<OperandSpec, n_samples_per_operand>::call(row_u, row_v), ind_xy);
+
+    LoadOperandsWithOffset<Sample, OperandSpec, n_samples_per_operand>::call(row_x, imag, ind_xy);
+    LoadOperandsWithOffset<Sample, OperandSpec, n_samples_per_operand>::call(row_u, imag, ind_uv);
+    ComputeTranspose<Sample, OperandSpec, n_samples_per_operand, n_samples_per_operand>::call(row_y, row_x);
+    ComputeTranspose<Sample, OperandSpec, n_samples_per_operand, n_samples_per_operand>::call(row_v, row_u);
+    StoreOperandsWithOffset<Sample, OperandSpec, n_samples_per_operand>::call(imag, AlternateOut<OperandSpec, n_samples_per_operand>::call(row_x, row_y), ind_uv);
+    StoreOperandsWithOffset<Sample, OperandSpec, n_samples_per_operand>::call(imag, AlternateOut<OperandSpec, n_samples_per_operand>::call(row_u, row_v), ind_xy);
+}
 
 std::vector<std::vector<std::vector<std::size_t>>> get_indexes_as_mats(std::size_t n_indexes) {
     std::size_t n_bits = int_log_2b(n_indexes);
@@ -585,72 +752,72 @@ void cache_oblivious_bit_reversal_permutation(
 
     switch (plan_type){
     case BitRevPermPlanType::N_INDEXES_BASE_SIZE_SQR:
-        OperandSpec::transpose_diagonal(real, imag, plan_indexes_data);
+        transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data);
         return;
 
     case BitRevPermPlanType::N_INDEXES_2_BASE_SIZE_SQR:
-        OperandSpec::transpose_diagonal(real, imag, plan_indexes_data);
-        OperandSpec::transpose_diagonal(real, imag, plan_indexes_data + base_size);
+        transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data);
+        transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + base_size);
         return;
 
     case BitRevPermPlanType::N_INDEXES_4_BASE_SIZE_SQR:
-        OperandSpec::transpose_diagonal(real, imag, plan_indexes_data);
-        OperandSpec::transpose_off_diagonal(real, imag, plan_indexes_data + base_size);
-        OperandSpec::transpose_diagonal(real, imag, plan_indexes_data + 3 * base_size);
+        transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data);
+        transpose_off_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + base_size);
+        transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + 3 * base_size);
         return;
 
     case BitRevPermPlanType::N_INDEXES_8_BASE_SIZE_SQR:
-        OperandSpec::transpose_diagonal(real, imag, plan_indexes_data);
-        OperandSpec::transpose_diagonal(real, imag, plan_indexes_data + base_size);
-        OperandSpec::transpose_off_diagonal(real, imag, plan_indexes_data + 2 * base_size);
-        OperandSpec::transpose_off_diagonal(real, imag, plan_indexes_data + 4 * base_size);
-        OperandSpec::transpose_diagonal(real, imag, plan_indexes_data + 6 * base_size);
-        OperandSpec::transpose_diagonal(real, imag, plan_indexes_data + 7 * base_size);
+        transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data);
+        transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + base_size);
+        transpose_off_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + 2 * base_size);
+        transpose_off_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + 4 * base_size);
+        transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + 6 * base_size);
+        transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + 7 * base_size);
         return;
 
     case BitRevPermPlanType::MAT_IS_SQUARE:
-        OperandSpec::transpose_diagonal(real, imag, plan_indexes_data);
-        OperandSpec::transpose_off_diagonal(real, imag, plan_indexes_data + base_size);
-        OperandSpec::transpose_diagonal(real, imag, plan_indexes_data + 3 * base_size);
+        transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data);
+        transpose_off_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + base_size);
+        transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + 3 * base_size);
         transpose_id = 4;
 
         for (std::size_t streak_len : off_diagonal_streak_lens) {
             for (std::size_t off_diagonal_id = 0; off_diagonal_id < streak_len; ++off_diagonal_id) {
-                OperandSpec::transpose_off_diagonal(real, imag, plan_indexes_data + transpose_id * base_size);
+                transpose_off_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + transpose_id * base_size);
                 transpose_id += 2;
             }
 
-            OperandSpec::transpose_diagonal(real, imag, plan_indexes_data + transpose_id * base_size);
-            OperandSpec::transpose_off_diagonal(real, imag, plan_indexes_data + (transpose_id + 1) * base_size);
-            OperandSpec::transpose_diagonal(real, imag, plan_indexes_data + (transpose_id + 3) * base_size);
+            transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + transpose_id * base_size);
+            transpose_off_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + (transpose_id + 1) * base_size);
+            transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + (transpose_id + 3) * base_size);
 
             transpose_id += 4;
         }
         return;
 
     default:
-        OperandSpec::transpose_diagonal(real, imag, plan_indexes_data);
-        OperandSpec::transpose_diagonal(real, imag, plan_indexes_data + base_size);
-        OperandSpec::transpose_off_diagonal(real, imag, plan_indexes_data + 2 * base_size);
-        OperandSpec::transpose_off_diagonal(real, imag, plan_indexes_data + 4 * base_size);
-        OperandSpec::transpose_diagonal(real, imag, plan_indexes_data + 6 * base_size);
-        OperandSpec::transpose_diagonal(real, imag, plan_indexes_data + 7 * base_size);
+        transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data);
+        transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + base_size);
+        transpose_off_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + 2 * base_size);
+        transpose_off_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + 4 * base_size);
+        transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + 6 * base_size);
+        transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + 7 * base_size);
 
         transpose_id = 8;
 
         for (std::size_t streak_len : off_diagonal_streak_lens) {
             for (std::size_t off_diagonal_id = 0; off_diagonal_id < streak_len; ++off_diagonal_id) {
-                OperandSpec::transpose_off_diagonal(real, imag, plan_indexes_data + transpose_id * base_size);
-                OperandSpec::transpose_off_diagonal(real, imag, plan_indexes_data + (transpose_id + 2) * base_size);
+                transpose_off_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + transpose_id * base_size);
+                transpose_off_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + (transpose_id + 2) * base_size);
                 transpose_id += 4;
             }
 
-            OperandSpec::transpose_diagonal(real, imag, plan_indexes_data + transpose_id * base_size);
-            OperandSpec::transpose_diagonal(real, imag, plan_indexes_data + (transpose_id + 1) * base_size);
-            OperandSpec::transpose_off_diagonal(real, imag, plan_indexes_data + (transpose_id + 2) * base_size);
-            OperandSpec::transpose_off_diagonal(real, imag, plan_indexes_data + (transpose_id + 4) * base_size);
-            OperandSpec::transpose_diagonal(real, imag, plan_indexes_data + (transpose_id + 6) * base_size);
-            OperandSpec::transpose_diagonal(real, imag, plan_indexes_data + (transpose_id + 7) * base_size);
+            transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + transpose_id * base_size);
+            transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + (transpose_id + 1) * base_size);
+            transpose_off_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + (transpose_id + 2) * base_size);
+            transpose_off_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + (transpose_id + 4) * base_size);
+            transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + (transpose_id + 6) * base_size);
+            transpose_diagonal<Sample, OperandSpec>(real, imag, plan_indexes_data + (transpose_id + 7) * base_size);
 
             transpose_id += 8;
         }

@@ -38,7 +38,7 @@ target_compile_options(afft-run PUBLIC
    -mavx2 
    -mfma 
    -funroll-loops # --param max-unroll-times=8
-   -march=native
+   #-march=native
    )
 target_include_directories( 
       afft-run 
