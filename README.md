@@ -15,9 +15,11 @@ Prototype
 - Liberal license
 
 ## Implementation
-- Expects different arrays for real and imaginary numbers (not directly supporting interweaved input, not direction support array or complex numbers)
+- Expects different arrays for real and imaginary numbers (for now) (not directly supporting interweaved input, not direction support array or complex numbers)
 - Cooley-Tukey (mixed radix of 2 and 4)
-- Possible to add SIMD-enabled bit-reversal (implement for AVX-double for now)
+- Optimized for Fused-Multiply-Add 
+- Fast Cache-Oblivious SIMD-enabled bit reversal permutation
+- Decimation in Time
   
 ## Investigated
 - While not benchmarked, Radix-8 and split radix is possibly not worth the effort.
@@ -31,18 +33,20 @@ Prototype
   - With FMA even radix-2 have attractive complexity.
 - Manually Unrolling the main radix-4 and radix-2 loops does not give much speed up.
 - Compiling with Clang gives 5% to 20% speed up over compiling with MSVC or GCC (on Windows, Intel i7-12700)
-- Skipping Bit-reversal in convolution is more performant
+- Skipping Bit-reversal in convolution is more performant when not using SIMD, but trickier when using SIMD without deinterleave instructions. Estimated savings of 15% - 30%. 
 - Theoretically, Stockham method means no bit-reversal, but adds interleaving to each stage of the algorithm. Right now, it is not worth changing the entire algorithm to find out. Additionally, Stockham requires multiple variations SIMD interleave operations, (e.g. interweave every other sample, every other two samples, etc....). This could potentially make relying  Stockham less portable, or more complicated.
 -  Index arithmetic with SIMD instructions is NOT performative
--  Single-pass bitreversal is the fastest. I should aim to minimize the ratio of loads and stores to actual computation, and avoid using work pointer
--  Manual loop unrolling doesn't always speed up code. For simplicity, I should aim to do 16 interleave? operations per loop. And x? math operations per loop
+-  Single-pass bitreversal is the fastest. I should aim to minimize the ratio of loads and stores to actual computation and avoid using work pointer
+-  Manual loop unrolling doesn't always speed up code. For simplicity, I aim to do 16 interleave operations per loop. And x? math operations per loop
 -  Six-stage or Four-stage fft may replace the bit-reversal with at least 1 transpose phase. Since I am not looking at very large datasets for real-time audio processing, I doubt further investigation into this will be worth it.
+-  Cache-oblivious bit reversal permutation is significantly faster than my previous COBRA implementation on <2^22. After that, COBRA is slightly faster. This might be because the data no longer fits in my L3 cache and COBRA has a more regular access pattern, and/or also doesn't need to load a bit reversal permutation plan.
+-  Non-fma is faster than the 6 operation fma trick from Ryg blog.
+-  Only use radix-4 or radix-2! radix-4-fma is nearly twice as fast as radix-2-fma, Avoiding loads matters. radix-4-fma is faster than radix-8-fma. radix-4-fma + radix-2-fma is faster than radix-8-fma.
+-  It is possible to operate on complex numbers by interleaving and deinterleaving in the first and last steps.  I will not be doing that at this time. 
+-  It is possible to improve performance further by combining the bit-reversal-permutation stage with the first butterfly stage to reduce the number of loads and stores. I will not be doing that at this time. 
+-  The plan following has a small overhead (for loop containing a switch statement). It is possible to remove this overhead by pregenerating/hardcoding the end-to-end FFT plan for each length. I will not be doing that at this time.
   
 ## Investigating
-- Cache-oblivious order of bit-reversal reorder (medium and large size, compare to COBRA)
-- In-place operation of main radix-4 and radix-2 loops
-- According to Ryg's blog, use FMA more efficient for radix-2 (and maybe radix-4)
-- radix 2^2, 2^3, 2^3, etc to minimize the ratio of loads and stores to actual computation
 - Recursive, Cache-oblivious FFTs
 
 ## Inspiration and lessons
@@ -59,6 +63,8 @@ Prototype
 - [OTFFT](http://wwwa.pikara.ne.jp/okojisan/otfft-en/index.html) and [Github Repo](https://github.com/DEWETRON/otfft)
   - Stockham and Six-stage algorithms instead of Cooley Tukey
   - The fastest of the open-source liberal license FFTs for smaller (<4096 samples) FFTs
+- [bit-reversed permutation](https://arxiv.org/pdf/1708.01873)
+  - Cache-oblivious "recursive" bit-reversed permutation can be as fast or faster than a well-tuned COBRA algorithm
 - [KFR](https://github.com/kfrlib/fft)
   - Another fast FFT, most likely using Cooley-Tukey
   - Not Liberal License
