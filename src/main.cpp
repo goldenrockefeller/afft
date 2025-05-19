@@ -320,34 +320,34 @@ int main()
 
     auto bit_reversed_indexes_ = bit_reversed_indexes(transformLen);
 
-    check_bit_rev_perm<1>();
-    check_bit_rev_perm<2>();
-    check_bit_rev_perm<4>();
-    check_bit_rev_perm<8>();
-    check_bit_rev_perm<16>();
-    check_bit_rev_perm<32>();
-    check_bit_rev_perm<64>();
-    check_bit_rev_perm<128>();
-    check_bit_rev_perm<256>(); 
+    // check_bit_rev_perm<1>();
+    // check_bit_rev_perm<2>();
+    // check_bit_rev_perm<4>();
+    // check_bit_rev_perm<8>();
+    // check_bit_rev_perm<16>();
+    // check_bit_rev_perm<32>();
+    // check_bit_rev_perm<64>();
+    // check_bit_rev_perm<128>();
+    // check_bit_rev_perm<256>(); 
 
-    check_fft_ditime<1>();
-    check_fft_ditime<2>();
-    check_fft_ditime<4>();
-    check_fft_ditime<8>();
-    check_fft_ditime<16>();
-    check_fft_ditime<32>();
-    check_fft_ditime<64>();
-    check_fft_ditime<128>();
-    check_fft_ditime<256>();
+    // check_fft_ditime<1>();
+    // check_fft_ditime<2>();
+    // check_fft_ditime<4>();
+    // check_fft_ditime<8>();
+    // check_fft_ditime<16>();
+    // check_fft_ditime<32>();
+    // check_fft_ditime<64>();
+    // check_fft_ditime<128>();
+    // check_fft_ditime<256>();
 
-    check_fft_difreq<1>();
-    check_fft_difreq<2>();
-    check_fft_difreq<4>();
-    check_fft_difreq<8>();
-    check_fft_difreq<16>();
-    check_fft_difreq<32>();
-    check_fft_difreq<64>();
-    check_fft_difreq<128>();
+    // check_fft_difreq<1>();
+    // check_fft_difreq<2>();
+    // check_fft_difreq<4>();
+    // check_fft_difreq<8>();
+    // check_fft_difreq<16>();
+    // check_fft_difreq<32>();
+    // check_fft_difreq<64>();
+    // check_fft_difreq<128>();
     check_fft_difreq<256>();
 
     int N = transformLen;

@@ -18,6 +18,7 @@ namespace afft
 
     public:
         explicit Butterfly(std::size_t n_samples) : plan_(n_samples, Spec::n_samples_per_operand) {}
+        Butterfly(std::size_t n_samples, std::size_t min_partition_len) : plan_(n_samples, Spec::n_samples_per_operand, min_partition_len) {}
 
         const ButterflyPlan<SampleSpec, Allocator> &plan() const
         {

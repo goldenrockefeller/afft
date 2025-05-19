@@ -62,17 +62,18 @@ namespace afft
             return twiddles_imag_;
         }
 
-        const typename Spec::sample &scaling_factor() const {
+        const typename Spec::sample &scaling_factor() const
+        {
             return scaling_factor_;
         }
-        
-        explicit ButterflyPlan(std::size_t n_samples, std::size_t max_n_samples_per_operand)
+
+        ButterflyPlan(std::size_t n_samples, std::size_t max_n_samples_per_operand)
         {
             namespace tw = afft::twiddles;
             namespace cm = afft::common_math;
             using sample = typename Spec::sample;
 
-            scaling_factor_ =  sample(1) / sample(n_samples);
+            scaling_factor_ = sample(1) / sample(n_samples);
 
             if (n_samples <= 1)
             {
@@ -86,10 +87,9 @@ namespace afft
 
             std::size_t n_samples_per_operand = 1 << log_n_samples_per_operand_as_size_t;
 
-            log_n_samples_per_operand_ = 
+            log_n_samples_per_operand_ =
                 as_log_n_samples_per_operand(
-                    log_n_samples_per_operand_as_size_t
-                );
+                    log_n_samples_per_operand_as_size_t);
 
             if (n_samples == n_samples_per_operand * 2)
             {
@@ -117,7 +117,6 @@ namespace afft
             radix_stages_.push_back(compound_radix_stage_);
 
             auto subtwiddle_len = n_samples_per_operand * 4;
-        
 
             while (subtwiddle_len < n_samples)
             {
@@ -167,19 +166,91 @@ namespace afft
             }
 
             // Carry Radix Stages is for a opening (potentially) out-of-place radix stage, mostly
-            // for Decimation-In-Frequency (DIF), as the carry radix stage is the first radix stage for DIF, and the last radix stage for DIT. 
+            // for Decimation-In-Frequency (DIF), as the carry radix stage is the first radix stage for DIF, and the last radix stage for DIT.
             // Most other radix stages are executed in-place. The first radix stage for DIT will always be a Compound Radix Stage.
             auto &carry_radix_stage = radix_stages_.back();
-            
-            if (carry_radix_stage.type == RadixType::radix4) {
+
+            if (carry_radix_stage.type == RadixType::radix4)
+            {
                 carry_radix_stage.type = RadixType::carry_radix4;
             }
-            else if (carry_radix_stage.type == RadixType::radix2) {
-                carry_radix_stage.type = RadixType::carry_radix2;
-            }
-            else if (carry_radix_stage.type == RadixType::compound_radix4) {
+            else if (carry_radix_stage.type == RadixType::compound_radix4)
+            {
                 carry_radix_stage.type = RadixType::carry_compound_radix4;
             }
+        }
+
+        ButterflyPlan(std::size_t n_samples, std::size_t max_n_samples_per_operand, std::size_t min_partition_len)
+            : ButterflyPlan(n_samples, max_n_samples_per_operand)
+        {
+            // This version of the constructor turns an iterative butterfly plan into a hybrid/recursive plan
+            std::vector<std::size_t> open_radix_stage_ids;
+            std::vector<std::size_t> open_radix_stage_partition_counts;
+            std::vector<std::size_t> open_radix_stage_partition_ids;
+
+            auto iterative_radix_stages = radix_stages_;
+            radix_stages_.clear();
+
+            open_radix_stage_ids.push_back(iterative_radix_stages.size() - 1);
+            open_radix_stage_partition_counts.push_back(1);
+            open_radix_stage_partition_ids.push_back(0);
+
+            while (open_radix_stage_ids.size() > 0)
+            {
+                auto radix_stage_id = open_radix_stage_ids.back();
+                open_radix_stage_ids.pop_back();
+
+                auto radix_stage_partition_count = open_radix_stage_partition_counts.back();
+                open_radix_stage_partition_counts.pop_back();
+
+                auto radix_stage_partition_id = open_radix_stage_partition_ids.back();
+                open_radix_stage_partition_ids.pop_back();
+
+                std::size_t sub_stage_partition_count;
+                auto radix_stage = iterative_radix_stages[radix_stage_id];
+
+                auto radix_stage_partition = radix_stage;
+                radix_stage_partition.subfft_id_start = radix_stage.subfft_id_end * radix_stage_partition_id / radix_stage_partition_count;
+                radix_stage_partition.subfft_id_end = radix_stage.subfft_id_end * (radix_stage_partition_id + 1) / radix_stage_partition_count;
+                radix_stages_.push_back(radix_stage_partition);
+
+                switch (radix_stage.type)
+                {
+                case RadixType::radix4:
+                case RadixType::carry_radix4:
+                case RadixType::compound_radix4:
+                case RadixType::carry_compound_radix4:
+                    sub_stage_partition_count = 4;
+                    break;
+
+                case RadixType::radix2:
+                case RadixType::compound_radix2:
+                    sub_stage_partition_count = 2;
+                    break;
+                }
+
+                if (n_samples / sub_stage_partition_count / radix_stage_partition_count > min_partition_len)
+                {
+                    for (std::size_t i = 0; i < sub_stage_partition_count; i++)
+                    {
+                        open_radix_stage_ids.push_back(radix_stage_id - 1);
+                        open_radix_stage_partition_counts.push_back(radix_stage_partition_count * sub_stage_partition_count);
+                        open_radix_stage_partition_ids.push_back(sub_stage_partition_count * radix_stage_partition_id + i);
+                    }
+                }
+                else
+                {
+                    for (; radix_stage_id-- > 0;)
+                    {
+                        radix_stage = iterative_radix_stages[radix_stage_id];
+                        radix_stage_partition = radix_stage;
+                        radix_stage_partition.subfft_id_start = radix_stage.subfft_id_end * radix_stage_partition_id / radix_stage_partition_count;
+                        radix_stage_partition.subfft_id_end = radix_stage.subfft_id_end * (radix_stage_partition_id + 1) / radix_stage_partition_count;
+                        radix_stages_.push_back(radix_stage_partition);
+                    }
+                }
+            }
+            std::reverse(radix_stages_.begin(), radix_stages_.end());
         }
     };
 }

@@ -17,6 +17,7 @@ namespace afft
 
     public:
         explicit FftComplex(std::size_t n_samples) : bit_rev_perm_(n_samples), butterfly_(n_samples) {}
+        explicit FftComplex(std::size_t n_samples, std::size_t min_partition_len) : bit_rev_perm_(n_samples), butterfly_(n_samples, min_partition_len) {}
 
         const BitRevPerm<Spec> &bit_rev_perm() const
         {

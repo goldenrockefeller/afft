@@ -26,6 +26,7 @@ namespace afft
 
         public:
         explicit ButterflyImpl(std::size_t n_samples) : plan_(n_samples, Spec::n_samples_per_operand) {}
+        ButterflyImpl(std::size_t n_samples, std::size_t min_partition_len) : plan_(n_samples, Spec::n_samples_per_operand, min_partition_len) {}
 
         const ButterflyPlan<SampleSpec, Allocator> &plan() const
         {
@@ -76,7 +77,6 @@ namespace afft
                     break;
 
                 case RadixType::radix2:
-                case RadixType::carry_radix2:
                     do_ditime_radix2_stage<Spec>(
                         out_real,
                         out_imag,
@@ -179,21 +179,7 @@ namespace afft
                         radix_stage.subtwiddle_end);
                     break;
 
-                case RadixType::radix2:
-                    do_difreq_radix2_stage<Spec>(
-                        out_real,
-                        out_imag,
-                        out_real,
-                        out_imag,
-                        radix_stage.tw_real_b,
-                        radix_stage.tw_imag_b,
-                        radix_stage.subtwiddle_len,
-                        radix_stage.subtwiddle_start,
-                        radix_stage.subtwiddle_end);
-                    break;
-
-                case RadixType::carry_radix2:
-            
+                case RadixType::radix2:            
                     do_difreq_radix2_stage<Spec>(
                         out_real,
                         out_imag,
