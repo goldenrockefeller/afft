@@ -10,8 +10,8 @@ namespace afft{
         typename Spec::sample* out_imag,
         const typename Spec::sample* in_real, 
         const typename Spec::sample* in_imag, 
-        const typename Spec::sample* tw_real_b, 
-        const typename Spec::sample* tw_imag_b, 
+        const typename Spec::sample* tw_real_b_0, 
+        const typename Spec::sample* tw_imag_b_0, 
         std::size_t subtwiddle_len,
         std::size_t subtwiddle_start,
         std::size_t subtwiddle_end
@@ -44,8 +44,8 @@ namespace afft{
         auto out_imag_a = out_imag + a_offset;
         auto out_real_b = out_real + b_offset;
         auto out_imag_b = out_imag + b_offset;
-        auto tw_real_b = tw_real_b + subtwiddle_start;
-        auto tw_imag_b = tw_imag_b + subtwiddle_start;
+        auto tw_real_b = tw_real_b_0 + subtwiddle_start;
+        auto tw_imag_b = tw_imag_b_0 + subtwiddle_start;
 
         for (
             std::size_t i = subtwiddle_start; 

@@ -18,7 +18,7 @@ namespace afft
             return plan_;
         }
 
-        static void eval(
+        static inline void eval(
             typename Spec::sample* out_real, 
             typename Spec::sample* out_imag,
             const typename Spec::sample* in_real, 

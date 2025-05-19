@@ -3,10 +3,13 @@
 
 namespace afft{
     enum class RadixType {
-        radix2,
         radix4,
-        edge2,
-        edge4
+        carry_radix4,
+        radix2,
+        carry_radix2,
+        compound_radix4,
+        carry_compound_radix4,
+        compound_radix2
     };
 }
 

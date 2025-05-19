@@ -10,12 +10,12 @@ namespace afft{
         typename Spec::sample* out_imag, 
         const typename Spec::sample* in_real, 
         const typename Spec::sample* in_imag, 
-        const typename Spec::sample* tw_real_b, 
-        const typename Spec::sample* tw_imag_b, 
-        const typename Spec::sample* tw_real_c, 
-        const typename Spec::sample* tw_imag_c, 
-        const typename Spec::sample* tw_real_d, 
-        const typename Spec::sample* tw_imag_d,
+        const typename Spec::sample* tw_real_b_0, 
+        const typename Spec::sample* tw_imag_b_0, 
+        const typename Spec::sample* tw_real_c_0, 
+        const typename Spec::sample* tw_imag_c_0, 
+        const typename Spec::sample* tw_real_d_0, 
+        const typename Spec::sample* tw_imag_d_0,
         std::size_t subfft_id_start,
         std::size_t subfft_id_end,
         std::size_t subtwiddle_len,
@@ -81,12 +81,12 @@ namespace afft{
             auto out_real_d = out_real + d_offset;
             auto out_imag_d = out_imag + d_offset;
 
-            auto tw_real_b = tw_real_b + subtwiddle_start;
-            auto tw_imag_b = tw_imag_b + subtwiddle_start;
-            auto tw_real_c = tw_real_c + subtwiddle_start;
-            auto tw_imag_c = tw_imag_c + subtwiddle_start;
-            auto tw_real_d = tw_real_d + subtwiddle_start;
-            auto tw_imag_d = tw_imag_d + subtwiddle_start;
+            auto tw_real_b = tw_real_b_0 + subtwiddle_start;
+            auto tw_imag_b = tw_imag_b_0 + subtwiddle_start;
+            auto tw_real_c = tw_real_c_0 + subtwiddle_start;
+            auto tw_imag_c = tw_imag_c_0 + subtwiddle_start;
+            auto tw_real_d = tw_real_d_0 + subtwiddle_start;
+            auto tw_imag_d = tw_imag_d_0 + subtwiddle_start;
 
             for (
                 std::size_t i = subtwiddle_start; 

@@ -1,5 +1,5 @@
 template<typename Sample, typename OperandSpec, bool rotating_output, bool rescaling_input>
-inline void do_radix4_difreq_regular_edge_stage(
+inline void do_radix4_difreq_regular_compound_radix_stage(
     Sample* real, 
     Sample* imag, 
     const Sample* tw_real_b_0, 

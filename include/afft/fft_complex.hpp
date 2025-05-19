@@ -1280,7 +1280,7 @@ namespace afft{
                         
                         b0_real = *a0_real + *a2_real;
                         b1_real = *a1_real + *a3_real;
-                        b2_real = *a0_real - *a2_real;
+                        b2_real = *a0_real - *a2_real; 
                         b3_real = *a1_imag - *a3_imag;
 
                         b0_imag = *a0_imag + *a2_imag;

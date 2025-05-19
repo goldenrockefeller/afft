@@ -1,5 +1,5 @@
 template<typename Sample, typename OperandSpec, bool rotating_output>
-inline void do_radix2_difreq_final_edge_stage(
+inline void do_radix2_difreq_final_compound_radix_stage(
     Sample* real, 
     Sample* imag, 
     const Sample* tw_real_b_0, 

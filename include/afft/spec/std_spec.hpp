@@ -2,24 +2,30 @@
 #define AFFT_STD_SPEC_HPP
 
 #include <cstddef>
+#include <cmath>
 
-namespace afft{   
-    template <typename Sample>    
-    struct StdSpec{
+namespace afft
+{
+    template <typename Sample>
+    struct StdSpec
+    {
         using fallback_spec = std::nullptr_t;
         using sample = Sample;
         using operand = Sample;
         static constexpr std::size_t n_samples_per_operand = 1;
 
-        static inline void load(operand& x, const sample* ptr) {
+        static inline void load(operand &x, const sample *ptr)
+        {
             x = *ptr;
         }
 
-        static inline void store(double* ptr, const operand& x) {
+        static inline void store(double *ptr, const operand &x)
+        {
             *ptr = x;
         }
 
-        static inline void transpose_diagonal(sample *out_real, sample *out_imag, const sample *in_real, const sample *in_imag, const std::size_t *offsets) {
+        static inline void transpose_diagonal(sample *out_real, sample *out_imag, const sample *in_real, const sample *in_imag, const std::size_t *offsets)
+        {
             std::size_t offsets0 = offsets[0];
             auto tmp_real = *(in_real + offsets0);
             auto tmp_imag = *(in_imag + offsets0);
@@ -27,7 +33,8 @@ namespace afft{
             *(out_imag + offsets0) = tmp_imag;
         }
 
-        static inline void transpose_off_diagonal(sample *out_real, sample *out_imag, const sample *in_real, const sample *in_imag, const std::size_t *offsets) {
+        static inline void transpose_off_diagonal(sample *out_real, sample *out_imag, const sample *in_real, const sample *in_imag, const std::size_t *offsets)
+        {
             std::size_t offsets0 = offsets[0];
             std::size_t offsets1 = offsets[1];
 
@@ -40,6 +47,65 @@ namespace afft{
             *(out_imag + offsets1) = tmp0_imag;
             *(out_real + offsets0) = tmp1_real;
             *(out_imag + offsets0) = tmp1_imag;
+        }
+
+        static inline sample sin(const sample &x)
+        {
+            return std::sin(x);
+        }
+
+        static inline sample cos(const sample &x)
+        {
+            return std::cos(x);
+        }
+
+        static inline sample pi()
+        {
+            return sample(std::acos(-1.0));
+        }
+
+        static inline void interleave2(
+            operand &out_real_a, operand &out_imag_a,
+            operand &out_real_b, operand &out_imag_b,
+            const operand &in_real_a, const operand &in_imag_a,
+            const operand &in_real_b, const operand &in_imag_b)
+        {
+            // Do Nothing
+        }
+
+        static inline void deinterleave2(
+            operand &out_real_a, operand &out_imag_a,
+            operand &out_real_b, operand &out_imag_b,
+            const operand &in_real_a, const operand &in_imag_a,
+            const operand &in_real_b, const operand &in_imag_b)
+        {
+            // Do Nothing
+        }
+
+        static inline void interleave4(
+            operand &out_real_a, operand &out_imag_a,
+            operand &out_real_b, operand &out_imag_b,
+            operand &out_real_c, operand &out_imag_c,
+            operand &out_real_d, operand &out_imag_d,
+            const operand &in_real_a, const operand &in_imag_a,
+            const operand &in_real_b, const operand &in_imag_b,
+            const operand &in_real_c, const operand &in_imag_c,
+            const operand &in_real_d, const operand &in_imag_d)
+        {
+            // Do Nothing
+        }
+
+        static inline void deinterleave4(
+            operand &out_real_a, operand &out_imag_a,
+            operand &out_real_b, operand &out_imag_b,
+            operand &out_real_c, operand &out_imag_c,
+            operand &out_real_d, operand &out_imag_d,
+            const operand &in_real_a, const operand &in_imag_a,
+            const operand &in_real_b, const operand &in_imag_b,
+            const operand &in_real_c, const operand &in_imag_c,
+            const operand &in_real_d, const operand &in_imag_d)
+        {
+            // Do Nothing
         }
     };
 }

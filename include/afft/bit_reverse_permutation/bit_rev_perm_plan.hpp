@@ -7,19 +7,20 @@
 #include "afft/bit_reverse_permutation/bit_rev_perm_plan_type.hpp"
 #include "afft/bit_reverse_permutation/plan_indexes_manipulation.hpp"
 #include "afft/common_math.hpp"
+#include "afft/log_n_samples_per_operand.hpp"
 
 namespace afft
 {
     class BitRevPermPlan
     {        
-        std::size_t log_n_sample_per_operand_;
+        LogNSamplesPerOperand log_n_samples_per_operand_;
         BitRevPermPlanType type_;
         std::vector<std::size_t> plan_indexes_;
         std::vector<std::size_t> off_diagonal_streak_lens_;
 
     public:
-    std::size_t log_n_sample_per_operand() const {
-            return log_n_sample_per_operand_;
+        LogNSamplesPerOperand log_n_samples_per_operand() const {
+            return log_n_samples_per_operand_;
         }
 
         BitRevPermPlanType type() const {
@@ -34,34 +35,39 @@ namespace afft
             return off_diagonal_streak_lens_;
         }
 
-        BitRevPermPlan(std::size_t n_indexes, std::size_t max_n_samples_per_operand)
+        BitRevPermPlan(std::size_t n_samples, std::size_t max_n_samples_per_operand)
         {
             using common_math::int_log_2;
             namespace pim = plan_indexes_manipulation;
-            std::size_t n_bits = int_log_2(n_indexes);
+            std::size_t n_bits = int_log_2(n_samples);
             bool indexes_mat_is_large_square = n_bits % 2 == 0;
 
-            log_n_sample_per_operand_ = 
+            auto log_n_samples_per_operand_as_size_t = 
                 std::min(
                     int_log_2(max_n_samples_per_operand),
-                    int_log_2(n_indexes) / 2 
+                    int_log_2(n_samples) / 2 
                 );
 
-            std::size_t n_samples_per_operand = 1 << log_n_sample_per_operand_;
+            log_n_samples_per_operand_ = 
+                as_log_n_samples_per_operand(
+                    log_n_samples_per_operand_as_size_t
+                );
+
+            std::size_t n_samples_per_operand = 1 << log_n_samples_per_operand_as_size_t;
             
-            if (n_indexes == n_samples_per_operand * n_samples_per_operand)
+            if (n_samples == n_samples_per_operand * n_samples_per_operand)
             {
                 type_ = BitRevPermPlanType::n_indexes_equals_base_size_sqr;
             }
-            else if (n_indexes == 2 * n_samples_per_operand * n_samples_per_operand)
+            else if (n_samples == 2 * n_samples_per_operand * n_samples_per_operand)
             {
                 type_ = BitRevPermPlanType::n_indexes_equals_2_base_size_sqr;
             }
-            else if (n_indexes == 4 * n_samples_per_operand * n_samples_per_operand)
+            else if (n_samples == 4 * n_samples_per_operand * n_samples_per_operand)
             {
                 type_ = BitRevPermPlanType::n_indexes_equals_4_base_size_sqr;
             }
-            else if (n_indexes == 8 * n_samples_per_operand * n_samples_per_operand)
+            else if (n_samples == 8 * n_samples_per_operand * n_samples_per_operand)
             {
                 type_ = BitRevPermPlanType::n_indexes_equals_8_base_size_sqr;
             }
@@ -74,7 +80,7 @@ namespace afft
                 type_ = BitRevPermPlanType::indexes_mat_is_large_nonsquare;
             }
             
-            std::vector<std::vector<std::vector<std::size_t>>> indexes_as_mats_ = pim::indexes_as_mats(n_indexes);
+            std::vector<std::vector<std::vector<std::size_t>>> indexes_as_mats_ = pim::indexes_as_mats(n_samples);
             std::vector<std::vector<std::vector<std::vector<std::size_t>>>> pre_plans_indexes_;
 
             for (auto &indexes_as_mat_ : indexes_as_mats_)
@@ -97,7 +103,7 @@ namespace afft
             
             ++transpose_pair_id;
 
-            if (n_indexes == n_samples_per_operand * n_samples_per_operand || n_indexes == 2 * n_samples_per_operand * n_samples_per_operand)
+            if (n_samples == n_samples_per_operand * n_samples_per_operand || n_samples == 2 * n_samples_per_operand * n_samples_per_operand)
             {
                 off_diagonal_streak_lens_ = {};
                 return;

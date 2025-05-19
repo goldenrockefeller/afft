@@ -15,14 +15,14 @@ namespace afft
         BitRevPermPlan plan_;
 
     public:
-        explicit BitRevPerm(std::size_t n_indexes) : plan_(n_indexes, Spec::n_samples_per_operand) {}
+        explicit BitRevPerm(std::size_t n_samples) : plan_(n_samples, Spec::n_samples_per_operand) {}
 
         const BitRevPermPlan &plan() const
         {
             return plan_;
         }
 
-        static void eval(
+        static inline void eval(
             typename Spec::sample *out_real,
             typename Spec::sample *out_imag,
             const typename Spec::sample *in_real,
@@ -30,9 +30,9 @@ namespace afft
             const BitRevPermPlan &plan)
         {
     
-            switch (plan.log_n_sample_per_operand())
+            switch (plan.log_n_samples_per_operand())
             { //
-            case 0:
+            case LogNSamplesPerOperand::n0:
                 BitRevPermImpl<typename BoundedSpec<Spec, 0>::spec>::eval(
                     out_real,
                     out_imag,
@@ -40,7 +40,7 @@ namespace afft
                     in_imag,
                     plan);
                 break;
-            case 1:
+            case LogNSamplesPerOperand::n1:
                 BitRevPermImpl<typename BoundedSpec<Spec, 1>::spec>::eval(
                     out_real,
                     out_imag,
@@ -48,7 +48,7 @@ namespace afft
                     in_imag,
                     plan);
                 break;
-            case 2:
+            case LogNSamplesPerOperand::n2:
                 BitRevPermImpl<typename BoundedSpec<Spec, 2>::spec>::eval(
                     out_real,
                     out_imag,
@@ -56,7 +56,7 @@ namespace afft
                     in_imag,
                     plan);
                 break;
-            case 3:
+            case LogNSamplesPerOperand::n3:
                 BitRevPermImpl<typename BoundedSpec<Spec, 3>::spec>::eval(
                     out_real,
                     out_imag,
@@ -64,7 +64,7 @@ namespace afft
                     in_imag,
                     plan);
                 break;
-            case 4:
+            case LogNSamplesPerOperand::n4:
                 BitRevPermImpl<typename BoundedSpec<Spec, 4>::spec>::eval(
                     out_real,
                     out_imag,
@@ -72,7 +72,7 @@ namespace afft
                     in_imag,
                     plan);
                 break;
-            case 5:
+            case LogNSamplesPerOperand::n5:
                 BitRevPermImpl<typename BoundedSpec<Spec, 5>::spec>::eval(
                     out_real,
                     out_imag,
@@ -80,7 +80,7 @@ namespace afft
                     in_imag,
                     plan);
                 break;
-            case 6:
+            case LogNSamplesPerOperand::n6:
                 BitRevPermImpl<typename BoundedSpec<Spec, 6>::spec>::eval(
                     out_real,
                     out_imag,
@@ -88,7 +88,7 @@ namespace afft
                     in_imag,
                     plan);
                 break;
-            case 7:
+            case LogNSamplesPerOperand::n7:
                 BitRevPermImpl<typename BoundedSpec<Spec, 7>::spec>::eval(
                     out_real,
                     out_imag,
@@ -96,7 +96,7 @@ namespace afft
                     in_imag,
                     plan);
                 break;
-            case 8: // Maximum support number of samples per operand is 256!
+            case LogNSamplesPerOperand::n8: // Maximum support number of samples per operand is 256!
                 BitRevPermImpl<typename BoundedSpec<Spec, 8>::spec>::eval(
                     out_real,
                     out_imag,
@@ -111,7 +111,7 @@ namespace afft
             typename Spec::sample *out_real,
             typename Spec::sample *out_imag,
             const typename Spec::sample *in_real,
-            const typename Spec::sample *in_imag)
+            const typename Spec::sample *in_imag) const
         {
             eval(
                 out_real,
