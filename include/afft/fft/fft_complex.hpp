@@ -38,7 +38,7 @@ namespace afft
         {
 
             bit_rev_perm_.eval(out_real, out_imag, in_real, in_imag);
-            butterfly_.eval_ditime(out_real, out_imag, out_real, out_imag);
+            butterfly_.template eval_ditime<Rescaling>(out_real, out_imag, out_real, out_imag);
         }
 
         template <bool Rescaling = false>
@@ -48,8 +48,8 @@ namespace afft
             const typename Spec::sample *in_real,
             const typename Spec::sample *in_imag)
         {
-            butterfly_.eval_difreq(out_real, out_imag, in_real, in_imag);
-            bit_rev_perm_.eval(out_real, out_imag, out_real, out_imag);
+            butterfly_.template eval_difreq<Rescaling>(out_real, out_imag, in_real, in_imag);
+            bit_rev_perm_. eval(out_real, out_imag, out_real, out_imag);
         }
     };
 }

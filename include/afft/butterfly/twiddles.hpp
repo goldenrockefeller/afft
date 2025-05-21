@@ -37,10 +37,11 @@ namespace afft
 
         template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
         std::vector<typename Spec::sample, Allocator> subtwiddle_real(std::size_t subtwiddle_len, typename Spec::sample freq) {
-            std::vector<double> result(subtwiddle_len);
+            using sample = typename Spec::sample;
+            std::vector<sample, Allocator> result(subtwiddle_len);
 
             for (std::size_t i = 0; i < subtwiddle_len; ++i) {
-                double x = i * freq / typename Spec::sample(subtwiddle_len);
+                sample x = i * freq / typename Spec::sample(subtwiddle_len);
                 result[i] = Spec::cos( Spec::pi() * x);
             }
 
@@ -49,10 +50,11 @@ namespace afft
 
         template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
         std::vector<typename Spec::sample, Allocator> subtwiddle_imag(std::size_t subtwiddle_len, typename Spec::sample freq) {
-            std::vector<typename Spec::sample, Allocator> result(subtwiddle_len);
+            using sample = typename Spec::sample;
+            std::vector<sample, Allocator> result(subtwiddle_len);
 
             for (std::size_t i = 0; i < subtwiddle_len; ++i) {
-                double x = i * freq / typename Spec::sample(subtwiddle_len);
+                sample x = i * freq / typename Spec::sample(subtwiddle_len);
                 result[i] = -Spec::sin(Spec::pi() * x);
             }
 

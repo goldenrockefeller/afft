@@ -37,7 +37,7 @@ namespace afft
             switch (plan.log_n_samples_per_operand())
             { //
             case LogNSamplesPerOperand::n0:
-                ButterflyImpl<typename BoundedSpec<Spec, 0>::spec>::eval_ditime(
+                ButterflyImpl<typename BoundedSpec<Spec, 0>::spec, Allocator>::template eval_ditime<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,
@@ -45,7 +45,7 @@ namespace afft
                     plan);
                 break;
             case LogNSamplesPerOperand::n1:
-                ButterflyImpl<typename BoundedSpec<Spec, 1>::spec>::eval_ditime(
+                ButterflyImpl<typename BoundedSpec<Spec, 1>::spec, Allocator>::template eval_ditime<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,
@@ -53,7 +53,7 @@ namespace afft
                     plan);
                 break;
             case LogNSamplesPerOperand::n2:
-                ButterflyImpl<typename BoundedSpec<Spec, 2>::spec>::eval_ditime(
+                ButterflyImpl<typename BoundedSpec<Spec, 2>::spec, Allocator>::template eval_ditime<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,
@@ -61,7 +61,7 @@ namespace afft
                     plan);
                 break;
             case LogNSamplesPerOperand::n3:
-                ButterflyImpl<typename BoundedSpec<Spec, 3>::spec>::eval_ditime(
+                ButterflyImpl<typename BoundedSpec<Spec, 3>::spec, Allocator>::template eval_ditime<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,
@@ -69,7 +69,7 @@ namespace afft
                     plan);
                 break;
             case LogNSamplesPerOperand::n4:
-                ButterflyImpl<typename BoundedSpec<Spec, 4>::spec>::eval_ditime(
+                ButterflyImpl<typename BoundedSpec<Spec, 4>::spec, Allocator>::template eval_ditime<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,
@@ -77,7 +77,7 @@ namespace afft
                     plan);
                 break;
             case LogNSamplesPerOperand::n5:
-                ButterflyImpl<typename BoundedSpec<Spec, 5>::spec>::eval_ditime(
+                ButterflyImpl<typename BoundedSpec<Spec, 5>::spec, Allocator>::template eval_ditime<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,
@@ -85,7 +85,7 @@ namespace afft
                     plan);
                 break;
             case LogNSamplesPerOperand::n6:
-                ButterflyImpl<typename BoundedSpec<Spec, 6>::spec>::eval_ditime(
+                ButterflyImpl<typename BoundedSpec<Spec, 6>::spec, Allocator>::template eval_ditime<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,
@@ -93,7 +93,7 @@ namespace afft
                     plan);
                 break;
             case LogNSamplesPerOperand::n7:
-                ButterflyImpl<typename BoundedSpec<Spec, 7>::spec>::eval_ditime(
+                ButterflyImpl<typename BoundedSpec<Spec, 7>::spec, Allocator>::template eval_ditime<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,
@@ -101,7 +101,7 @@ namespace afft
                     plan);
                 break;
             case LogNSamplesPerOperand::n8: // Maximum support number of samples per operand is 256!
-                ButterflyImpl<typename BoundedSpec<Spec, 8>::spec>::eval_ditime(
+                ButterflyImpl<typename BoundedSpec<Spec, 8>::spec, Allocator>::template eval_ditime<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,
@@ -123,7 +123,7 @@ namespace afft
             switch (plan.log_n_samples_per_operand())
             { //
             case LogNSamplesPerOperand::n0:
-                ButterflyImpl<typename BoundedSpec<Spec, 0>::spec>::eval_difreq(
+                ButterflyImpl<typename BoundedSpec<Spec, 0>::spec, Allocator>::template eval_difreq<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,
@@ -131,7 +131,7 @@ namespace afft
                     plan);
                 break;
             case LogNSamplesPerOperand::n1:
-                ButterflyImpl<typename BoundedSpec<Spec, 1>::spec>::eval_difreq(
+                ButterflyImpl<typename BoundedSpec<Spec, 1>::spec, Allocator>::template eval_difreq<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,
@@ -139,7 +139,7 @@ namespace afft
                     plan);
                 break;
             case LogNSamplesPerOperand::n2:
-                ButterflyImpl<typename BoundedSpec<Spec, 2>::spec>::eval_difreq(
+                ButterflyImpl<typename BoundedSpec<Spec, 2>::spec, Allocator>::template eval_difreq<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,
@@ -147,7 +147,7 @@ namespace afft
                     plan);
                 break;
             case LogNSamplesPerOperand::n3:
-                ButterflyImpl<typename BoundedSpec<Spec, 3>::spec>::eval_difreq(
+                ButterflyImpl<typename BoundedSpec<Spec, 3>::spec, Allocator>::template eval_difreq<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,
@@ -155,7 +155,7 @@ namespace afft
                     plan);
                 break;
             case LogNSamplesPerOperand::n4:
-                ButterflyImpl<typename BoundedSpec<Spec, 4>::spec>::eval_difreq(
+                ButterflyImpl<typename BoundedSpec<Spec, 4>::spec, Allocator>::template eval_difreq<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,
@@ -163,7 +163,7 @@ namespace afft
                     plan);
                 break;
             case LogNSamplesPerOperand::n5:
-                ButterflyImpl<typename BoundedSpec<Spec, 5>::spec>::eval_difreq(
+                ButterflyImpl<typename BoundedSpec<Spec, 5>::spec, Allocator>::template eval_difreq<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,
@@ -171,7 +171,7 @@ namespace afft
                     plan);
                 break;
             case LogNSamplesPerOperand::n6:
-                ButterflyImpl<typename BoundedSpec<Spec, 6>::spec>::eval_difreq(
+                ButterflyImpl<typename BoundedSpec<Spec, 6>::spec, Allocator>::template eval_difreq<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,
@@ -179,7 +179,7 @@ namespace afft
                     plan);
                 break;
             case LogNSamplesPerOperand::n7:
-                ButterflyImpl<typename BoundedSpec<Spec, 7>::spec>::eval_difreq(
+                ButterflyImpl<typename BoundedSpec<Spec, 7>::spec, Allocator>::template eval_difreq<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,
@@ -187,7 +187,7 @@ namespace afft
                     plan);
                 break;
             case LogNSamplesPerOperand::n8: // Maximum support number of samples per operand is 256!
-                ButterflyImpl<typename BoundedSpec<Spec, 8>::spec>::eval_difreq(
+                ButterflyImpl<typename BoundedSpec<Spec, 8>::spec, Allocator>::template eval_difreq<Rescaling>(
                     out_real,
                     out_imag,
                     in_real,

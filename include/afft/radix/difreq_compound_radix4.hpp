@@ -102,15 +102,15 @@ namespace afft
             beta_real_a_op = alpha_real_a_op;
             beta_imag_a_op = alpha_imag_a_op;
 
-            Spec::interleave4(
-                alpha_real_a_op, alpha_imag_a_op,
-                alpha_real_b_op, alpha_imag_b_op,
-                alpha_real_c_op, alpha_imag_c_op,
-                alpha_real_d_op, alpha_imag_d_op,
-                beta_real_a_op, beta_imag_a_op,
-                beta_real_b_op, beta_imag_b_op,
-                beta_real_c_op, beta_imag_c_op,
-                beta_real_d_op, beta_imag_d_op);
+            // Spec::interleave4(
+            //     alpha_real_a_op, alpha_imag_a_op,
+            //     alpha_real_b_op, alpha_imag_b_op,
+            //     alpha_real_c_op, alpha_imag_c_op,
+            //     alpha_real_d_op, alpha_imag_d_op,
+            //     beta_real_a_op, beta_imag_a_op,
+            //     beta_real_b_op, beta_imag_b_op,
+            //     beta_real_c_op, beta_imag_c_op,
+            //     beta_real_d_op, beta_imag_d_op);
         }
     };
 
@@ -197,17 +197,17 @@ namespace afft
             beta_real_d_op -= alpha_real_d_op;
             beta_imag_d_op += alpha_imag_d_op;
 
-            Spec::interleave2(
-                alpha_real_a_op, alpha_imag_a_op,
-                alpha_real_b_op, alpha_imag_b_op,
-                beta_real_a_op, beta_imag_a_op,
-                beta_real_c_op, beta_imag_c_op);
+            // Spec::interleave2(
+            //     alpha_real_a_op, alpha_imag_a_op,
+            //     alpha_real_b_op, alpha_imag_b_op,
+            //     beta_real_a_op, beta_imag_a_op,
+            //     beta_real_c_op, beta_imag_c_op);
 
-            Spec::interleave2(
-                alpha_real_c_op, alpha_imag_c_op,
-                alpha_real_d_op, alpha_imag_d_op,
-                beta_real_b_op, beta_imag_b_op,
-                beta_real_d_op, beta_imag_d_op);
+            // Spec::interleave2(
+            //     alpha_real_c_op, alpha_imag_c_op,
+            //     alpha_real_d_op, alpha_imag_d_op,
+            //     beta_real_b_op, beta_imag_b_op,
+            //     beta_real_d_op, beta_imag_d_op);
         }
     };
 
@@ -387,15 +387,15 @@ namespace afft
             }
             else
             {
-                Spec::interleave4(
-                    beta_real_a_op, beta_imag_a_op,
-                    beta_real_b_op, beta_imag_b_op,
-                    beta_real_c_op, beta_imag_c_op,
-                    beta_real_d_op, beta_imag_d_op,
-                    alpha_real_a_op, alpha_imag_a_op,
-                    alpha_real_b_op, alpha_imag_b_op,
-                    alpha_real_c_op, alpha_imag_c_op,
-                    alpha_real_d_op, alpha_imag_d_op);
+                // Spec::interleave4(
+                //     beta_real_a_op, beta_imag_a_op,
+                //     beta_real_b_op, beta_imag_b_op,
+                //     beta_real_c_op, beta_imag_c_op,
+                //     beta_real_d_op, beta_imag_d_op,
+                //     alpha_real_a_op, alpha_imag_a_op,
+                //     alpha_real_b_op, alpha_imag_b_op,
+                //     alpha_real_c_op, alpha_imag_c_op,
+                //     alpha_real_d_op, alpha_imag_d_op);
 
                 // STORE
                 Spec::store(out_real_a, beta_real_a_op);

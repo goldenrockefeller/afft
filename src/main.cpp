@@ -23,24 +23,24 @@
 #include <iostream>
 #include <cmath>
 
-
 using namespace afft;
 using namespace afft::common_math;
 using namespace afft::plan_indexes_manipulation;
 using namespace std;
 
-
-class RandomGenerator {
+class RandomGenerator
+{
 public:
     RandomGenerator(double min = -1.0, double max = 1.0)
         : rng(std::random_device{}()), dist(min, max) {}
 
-    double gen() {
+    double gen()
+    {
         return dist(rng);
     }
 
 private:
-    std::mt19937 rng; // Mersenne Twister RNG
+    std::mt19937 rng;                            // Mersenne Twister RNG
     std::uniform_real_distribution<double> dist; // Uniform distribution for doubles
 };
 
@@ -115,7 +115,7 @@ void check_fft_ditime()
         int sizeFFTSpec, sizeFFTInitBuf, sizeFFTWorkBuf;
         ippsFFTGetSize_C_64fc(
             order, IPP_FFT_NODIV_BY_ANY,
-            ippAlgHintAccurate, &sizeFFTSpec, &sizeFFTInitBuf, &sizeFFTWorkBuf);
+            ippAlgHintFast, &sizeFFTSpec, &sizeFFTInitBuf, &sizeFFTWorkBuf);
 
         // Alloc FFT buffers
         pFFTSpecBuf = ippsMalloc_8u(sizeFFTSpec);
@@ -124,16 +124,17 @@ void check_fft_ditime()
 
         // Initialize FFT
         ippsFFTInit_C_64fc(&pFFTSpec, order, IPP_FFT_NODIV_BY_ANY,
-                           ippAlgHintAccurate, pFFTSpecBuf, pFFTInitBuf);
+                           ippAlgHintFast, pFFTSpecBuf, pFFTInitBuf);
         if (pFFTInitBuf)
             ippFree(pFFTInitBuf);
 
-        FftComplex<ValArraySpec<OperandSize>> fft(n_samples);
-        
+        FftComplex<ValArraySpec<OperandSize>> fft(n_samples, 1024);
+
         auto rng = RandomGenerator();
 
         // Set up random number
-        for (size_t i =0 ; i<n_samples; i ++) {
+        for (size_t i = 0; i < n_samples; i++)
+        {
             auto r = rng.gen();
             x_real[i] = r;
             pSrc[i].re = r;
@@ -163,7 +164,8 @@ void check_fft_ditime()
         double signal_power_ = 0.0;
         double noise_power_ = 0.0;
 
-        for (size_t i =0 ; i<n_samples; i ++) {
+        for (size_t i = 0; i < n_samples; i++)
+        {
             signal_power_ += pDst[i].re * pDst[i].re;
             signal_power_ += pDst[i].im * pDst[i].im;
             noise_power_ += (pDst[i].re - x_real[i]) * (pDst[i].re - x_real[i]);
@@ -171,18 +173,18 @@ void check_fft_ditime()
             // std::cout << pDst[i].re << " , " << pDst[i].im << " ; " << x_real[i] << " , " << x_imag[i] <<endl;
         }
 
-        auto snr = 10 * std::log10(signal_power_/(noise_power_ +  1e-100) +  1e-100);
+        auto snr = 10 * std::log10(signal_power_ / (noise_power_ + 1e-100) + 1e-100);
 
         // Report
 
-        if (snr < 200) {
-            cout << "check_fft_ditime OperandSize: " << OperandSize 
-                << " N_samples: " << n_samples
-                << " snr: " << snr
-                <<  endl;
+        if (snr < 200)
+        {
+            cout << "check_fft_ditime OperandSize: " << OperandSize
+                 << " N_samples: " << n_samples
+                 << " snr: " << snr
+                 << endl;
 
-
-            cout << "------------------------------------------- " <<  endl;
+            cout << "------------------------------------------- " << endl;
         }
 
         /////////////////// CLEANUP
@@ -227,7 +229,7 @@ void check_fft_difreq()
         int sizeFFTSpec, sizeFFTInitBuf, sizeFFTWorkBuf;
         ippsFFTGetSize_C_64fc(
             order, IPP_FFT_NODIV_BY_ANY,
-            ippAlgHintAccurate, &sizeFFTSpec, &sizeFFTInitBuf, &sizeFFTWorkBuf);
+            ippAlgHintFast, &sizeFFTSpec, &sizeFFTInitBuf, &sizeFFTWorkBuf);
 
         // Alloc FFT buffers
         pFFTSpecBuf = ippsMalloc_8u(sizeFFTSpec);
@@ -236,16 +238,17 @@ void check_fft_difreq()
 
         // Initialize FFT
         ippsFFTInit_C_64fc(&pFFTSpec, order, IPP_FFT_NODIV_BY_ANY,
-                           ippAlgHintAccurate, pFFTSpecBuf, pFFTInitBuf);
+                           ippAlgHintFast, pFFTSpecBuf, pFFTInitBuf);
         if (pFFTInitBuf)
             ippFree(pFFTInitBuf);
 
-        FftComplex<ValArraySpec<OperandSize>> fft(n_samples);
-        
+        FftComplex<ValArraySpec<OperandSize>> fft(n_samples, 1024);
+
         auto rng = RandomGenerator();
 
         // Set up random number
-        for (size_t i =0 ; i<n_samples; i ++) {
+        for (size_t i = 0; i < n_samples; i++)
+        {
             auto r = rng.gen();
             x_real[i] = r;
             pSrc[i].re = r;
@@ -275,7 +278,8 @@ void check_fft_difreq()
         double signal_power_ = 0.0;
         double noise_power_ = 0.0;
 
-        for (size_t i =0 ; i<n_samples; i ++) {
+        for (size_t i = 0; i < n_samples; i++)
+        {
             signal_power_ += pDst[i].re * pDst[i].re;
             signal_power_ += pDst[i].im * pDst[i].im;
             noise_power_ += (pDst[i].re - x_real[i]) * (pDst[i].re - x_real[i]);
@@ -283,18 +287,18 @@ void check_fft_difreq()
             // std::cout << pDst[i].re << " , " << pDst[i].im << " ; " << x_real[i] << " , " << x_imag[i] <<endl;
         }
 
-        auto snr = 10 * std::log10(signal_power_/(noise_power_ +  1e-100) +  1e-100);
+        auto snr = 10 * std::log10(signal_power_ / (noise_power_ + 1e-100) + 1e-100);
 
         // Report
 
-        if (snr < 200) {
-            cout << "check_fft_difreq OperandSize: " << OperandSize 
-                << " N_samples: " << n_samples
-                << " snr: " << snr
-                <<  endl;
+        if (snr < 200)
+        {
+            cout << "check_fft_difreq OperandSize: " << OperandSize
+                 << " N_samples: " << n_samples
+                 << " snr: " << snr
+                 << endl;
 
-
-            cout << "------------------------------------------- " <<  endl;
+            cout << "------------------------------------------- " << endl;
         }
 
         /////////////////// CLEANUP
@@ -313,12 +317,333 @@ void check_fft_difreq()
     }
 }
 
+template <std::size_t OperandSize>
+void check_fft_inv()
+{
+    cout << "check_fft_inv OperandSize: " << OperandSize << endl;
+    std::vector<std::size_t> trials;
+    for (std::size_t i = 1; i < 20; i++)
+    {
+        trials.push_back(1 << i);
+    }
+    for (auto n_samples : trials)
+    {
+        const int order = int_log_2(n_samples);
+        // Spec and working buffers
+        IppsFFTSpec_C_64fc *pFFTSpec = 0;
+        Ipp8u *pFFTSpecBuf, *pFFTInitBuf, *pFFTWorkBuf;
+
+        // Allocate complex buffers
+        Ipp64fc *pSrc = ippsMalloc_64fc(n_samples);
+        Ipp64fc *pDst = ippsMalloc_64fc(n_samples);
+        std::vector<double> x_real(n_samples);
+        std::vector<double> x_imag(n_samples);
+
+        // Query to get buffer sizes
+        int sizeFFTSpec, sizeFFTInitBuf, sizeFFTWorkBuf;
+        ippsFFTGetSize_C_64fc(
+            order, IPP_FFT_NODIV_BY_ANY,
+            ippAlgHintFast, &sizeFFTSpec, &sizeFFTInitBuf, &sizeFFTWorkBuf);
+
+        // Alloc FFT buffers
+        pFFTSpecBuf = ippsMalloc_8u(sizeFFTSpec);
+        pFFTInitBuf = ippsMalloc_8u(sizeFFTInitBuf);
+        pFFTWorkBuf = ippsMalloc_8u(sizeFFTWorkBuf);
+
+        // Initialize FFT
+        ippsFFTInit_C_64fc(&pFFTSpec, order, IPP_FFT_NODIV_BY_ANY,
+                           ippAlgHintFast, pFFTSpecBuf, pFFTInitBuf);
+        if (pFFTInitBuf)
+            ippFree(pFFTInitBuf);
+
+        FftComplex<ValArraySpec<OperandSize>> fft(n_samples, 1024);
+
+        auto rng = RandomGenerator();
+
+        // Set up random number
+        for (size_t i = 0; i < n_samples; i++)
+        {
+            auto r = rng.gen();
+            x_real[i] = r;
+            pSrc[i].re = r;
+
+            r = rng.gen();
+            x_imag[i] = r;
+            pSrc[i].im = r;
+        }
+
+        /////////////////// DeBUG
+        // for (size_t i =0 ; i<n_samples; i ++) {
+        //     x_real[i] = 0;
+        //     x_imag[i] = 0;
+        // }
+        // x_imag[2] = 1;
+        // fft.eval_difreq(x_real.data(), x_imag.data(), x_real.data(), x_imag.data());
+        // for (size_t i =0 ; i<n_samples; i ++) {
+        //     std::cout << "x_real, x_imag: " << x_real[i] << " , " << x_imag[i] <<endl;
+        // }
+
+        /////////////////// COMPUTE
+
+        ippsFFTInv_CToC_64fc(pSrc, pDst, pFFTSpec, pFFTWorkBuf);
+        fft.eval_difreq(x_imag.data(), x_real.data(), x_imag.data(), x_real.data());
+
+        /////////////////// COMPARE
+        double signal_power_ = 0.0;
+        double noise_power_ = 0.0;
+
+        for (size_t i = 0; i < n_samples; i++)
+        {
+            signal_power_ += pDst[i].re * pDst[i].re;
+            signal_power_ += pDst[i].im * pDst[i].im;
+            noise_power_ += (pDst[i].re - x_real[i]) * (pDst[i].re - x_real[i]);
+            noise_power_ += (pDst[i].im - x_imag[i]) * (pDst[i].im - x_imag[i]);
+            // std::cout << pDst[i].re << " , " << pDst[i].im << " ; " << x_real[i] << " , " << x_imag[i] <<endl;
+        }
+
+        auto snr = 10 * std::log10(signal_power_ / (noise_power_ + 1e-100) + 1e-100);
+
+        // Report
+
+        if (snr < 200)
+        {
+            cout << "check_fft_difreq OperandSize: " << OperandSize
+                 << " N_samples: " << n_samples
+                 << " snr: " << snr
+                 << endl;
+
+            cout << "------------------------------------------- " << endl;
+        }
+
+        /////////////////// CLEANUP
+
+        if (pSrc)
+            ippFree(pSrc);
+
+        if (pDst)
+            ippFree(pDst);
+
+        if (pFFTSpecBuf)
+            ippFree(pFFTSpecBuf);
+
+        if (pFFTWorkBuf)
+            ippFree(pFFTWorkBuf);
+    }
+}
+
+void do_bench()
+{
+    cout << "do_bench: " << endl;
+    std::vector<std::size_t> trials;
+    for (std::size_t i = 1; i < 20; i++)
+    {
+        trials.push_back(1 << i);
+    }
+    for (auto n_samples : trials)
+    {
+
+        ankerl::nanobench::Bench bench;
+        ostringstream title_stream;
+        title_stream << "Br Size: " << n_samples;
+        bench.title(title_stream.str());
+
+        bench.minEpochIterations(10);
+
+        const int order = int_log_2(n_samples);
+        // Spec and working buffers
+        IppsFFTSpec_C_64fc *pFFTSpec_Fast = 0;
+        IppsFFTSpec_C_64fc *pFFTSpec_Accurate = 0;
+        Ipp8u *pFFTSpecBuf_Fast, *pFFTInitBuf_Fast, *pFFTWorkBuf_Fast;
+        Ipp8u *pFFTSpecBuf_Accurate, *pFFTInitBuf_Accurate, *pFFTWorkBuf_Accurate;
+
+        // Allocate complex buffers
+        Ipp64fc *pSrc = ippsMalloc_64fc(n_samples);
+        Ipp64fc *pDst = ippsMalloc_64fc(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> x_real(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> x_imag(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> y_real(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> y_imag(n_samples);
+
+        // Query to get buffer sizes
+        int sizeFFTSpec_Fast, sizeFFTInitBuf_Fast, sizeFFTWorkBuf_Fast;
+        ippsFFTGetSize_C_64fc(
+            order, IPP_FFT_NODIV_BY_ANY,
+            ippAlgHintFast, &sizeFFTSpec_Fast, &sizeFFTInitBuf_Fast, &sizeFFTWorkBuf_Fast);
+
+        int sizeFFTSpec_Accurate, sizeFFTInitBuf_Accurate, sizeFFTWorkBuf_Accurate;
+        ippsFFTGetSize_C_64fc(
+            order, IPP_FFT_NODIV_BY_ANY,
+            ippAlgHintAccurate, &sizeFFTSpec_Accurate, &sizeFFTInitBuf_Accurate, &sizeFFTWorkBuf_Accurate);
+
+        // Alloc FFT buffers
+        pFFTSpecBuf_Fast = ippsMalloc_8u(sizeFFTSpec_Fast);
+        pFFTInitBuf_Fast = ippsMalloc_8u(sizeFFTInitBuf_Fast);
+        pFFTWorkBuf_Fast = ippsMalloc_8u(sizeFFTWorkBuf_Fast);
+
+        // Alloc FFT buffers
+        pFFTSpecBuf_Accurate = ippsMalloc_8u(sizeFFTSpec_Accurate);
+        pFFTInitBuf_Accurate = ippsMalloc_8u(sizeFFTInitBuf_Accurate);
+        pFFTWorkBuf_Accurate = ippsMalloc_8u(sizeFFTWorkBuf_Accurate);
+
+        // Initialize FFT
+        ippsFFTInit_C_64fc(&pFFTSpec_Fast, order, IPP_FFT_NODIV_BY_ANY,
+                           ippAlgHintFast, pFFTSpecBuf_Fast, pFFTInitBuf_Fast);
+        ippsFFTInit_C_64fc(&pFFTSpec_Accurate, order, IPP_FFT_NODIV_BY_ANY,
+                           ippAlgHintAccurate, pFFTSpecBuf_Accurate, pFFTInitBuf_Accurate);
+        
+
+        if (pFFTInitBuf_Fast)
+            ippFree(pFFTInitBuf_Fast);
+        if (pFFTInitBuf_Accurate)
+            ippFree(pFFTInitBuf_Accurate);
+
+        
+        auto ot_fft = OTFFT::Factory::createComplexFFT(n_samples);
+
+        FftComplex<StdSpec<double>, xsimd::aligned_allocator<double, 1024>> fft_recursive(n_samples, 1024);
+        FftComplex<StdSpec<double>, xsimd::aligned_allocator<double, 1024>> fft_iterative(n_samples);
+        FftComplex<Double4Avx2Spec, xsimd::aligned_allocator<double, 1024>> simd_fft_recursive(n_samples, 1024);
+        FftComplex<Double4Avx2Spec, xsimd::aligned_allocator<double, 1024>> simd_fft_iterative(n_samples);
+
+        auto rng = RandomGenerator();
+
+        // Set up random number
+        for (size_t i = 0; i < n_samples; i++)
+        {
+            auto r = rng.gen();
+            x_real[i] = r;
+            pSrc[i].re = r;
+
+            r = rng.gen();
+            x_imag[i] = r;
+            pSrc[i].im = r;
+        }
+
+        /////////////////// COMPUTE
+
+        bench.run("Ipp Fast", [&]()
+                  { ippsFFTFwd_CToC_64fc(pSrc, pDst, pFFTSpec_Fast, pFFTWorkBuf_Fast); });
+
+        // bench.run("Ipp Accurate", [&]()
+        //           { ippsFFTFwd_CToC_64fc(pSrc, pDst, pFFTSpec_Accurate, pFFTWorkBuf_Accurate); });
+
+        bench.run("OTFFT", [&]() {
+            ot_fft->fwd((OTFFT::complex_t*)pSrc);
+        });
+
+        // bench.run("fft_recursive_difreq", [&]()
+        //           { fft_recursive.eval_difreq(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
+
+        // bench.run("fft_recursive_ditime", [&]()
+        //           { fft_recursive.eval_ditime(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
+
+        // bench.run("fft_iterative_difreq", [&]()
+        //           { fft_iterative.eval_difreq(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
+
+        // bench.run("fft_iterative_ditime", [&]()
+        //           { fft_iterative.eval_ditime(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
+
+        bench.run("simd_fft_recursive_difreq", [&]()
+                  { simd_fft_recursive.eval_difreq(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
+
+        bench.run("simd_fft_recursive_ditime", [&]()
+                  { simd_fft_recursive.eval_ditime(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
+
+        bench.run("simd_fft_iterative_difreq", [&]()
+                  { simd_fft_iterative.eval_difreq(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
+
+        bench.run("simd_fft_iterative_ditime", [&]()
+                  { simd_fft_iterative.eval_ditime(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
+
+        std::cout << y_real[0] << pDst[0].re << std::endl;
+
+        /////////////////// CLEANUP
+
+        if (pSrc)
+            ippFree(pSrc);
+
+        if (pDst)
+            ippFree(pDst);
+
+        if (pFFTSpecBuf_Fast)
+            ippFree(pFFTSpecBuf_Fast);
+
+        if (pFFTWorkBuf_Fast)
+            ippFree(pFFTWorkBuf_Fast);
+
+        if (pFFTSpecBuf_Accurate)
+            ippFree(pFFTSpecBuf_Accurate);
+
+        if (pFFTWorkBuf_Accurate)
+            ippFree(pFFTWorkBuf_Accurate);
+    }
+}
 
 int main()
 {
     constexpr std::size_t transformLen = 1 << 6;
 
     auto bit_reversed_indexes_ = bit_reversed_indexes(transformLen);
+
+    double x_real[8];
+    double x_imag[8];
+
+    for (std::size_t i = 0; i < 8; i++)
+    {
+        x_real[i] = double(i);
+        x_imag[i] = -double(i);
+    }
+
+    for (std::size_t i = 0; i < 8; i++)
+    {
+        std::cout << i << " x_real[i], x_imag[i] =" << x_real[i] << ", " << x_imag[i] << std::endl;
+    }
+
+    std::cout << "-----------------" << std::endl;
+
+    Double2Sse2Spec::operand x_real_a_op;
+    Double2Sse2Spec::operand x_real_b_op;
+    Double2Sse2Spec::operand x_real_c_op;
+    Double2Sse2Spec::operand x_real_d_op;
+    Double2Sse2Spec::operand x_imag_a_op;
+    Double2Sse2Spec::operand x_imag_b_op;
+    Double2Sse2Spec::operand x_imag_c_op;
+    Double2Sse2Spec::operand x_imag_d_op;
+
+    Double2Sse2Spec::load(x_real_a_op, x_real);
+    Double2Sse2Spec::load(x_real_b_op, x_real + 2);
+    Double2Sse2Spec::load(x_real_c_op, x_real + 4);
+    Double2Sse2Spec::load(x_real_d_op, x_real + 6);
+    Double2Sse2Spec::load(x_imag_a_op, x_imag);
+    Double2Sse2Spec::load(x_imag_b_op, x_imag + 2);
+    Double2Sse2Spec::load(x_imag_c_op, x_imag + 4);
+    Double2Sse2Spec::load(x_imag_d_op, x_imag + 6);
+
+    Double2Sse2Spec::interleave4(
+        x_real_a_op, x_imag_a_op,
+        x_real_b_op, x_imag_b_op,
+        x_real_c_op, x_imag_c_op,
+        x_real_d_op, x_imag_d_op,
+        x_real_a_op, x_imag_a_op,
+        x_real_b_op, x_imag_b_op,
+        x_real_c_op, x_imag_c_op,
+        x_real_d_op, x_imag_d_op);
+
+    Double2Sse2Spec::store(x_real, x_real_a_op);
+    Double2Sse2Spec::store(x_real + 2, x_real_b_op);
+    Double2Sse2Spec::store(x_real + 4, x_real_c_op);
+    Double2Sse2Spec::store(x_real + 6, x_real_d_op);
+    Double2Sse2Spec::store(x_imag, x_imag_a_op);
+    Double2Sse2Spec::store(x_imag + 2, x_imag_b_op);
+    Double2Sse2Spec::store(x_imag + 4, x_imag_c_op);
+    Double2Sse2Spec::store(x_imag + 6, x_imag_d_op);
+
+    for (std::size_t i = 0; i < 8; i++)
+    {
+        std::cout << i << " x_real[i], x_imag[i] =" << x_real[i] << ", " << x_imag[i] << std::endl;
+    }
+
+    do_bench();
 
     // check_bit_rev_perm<1>();
     // check_bit_rev_perm<2>();
@@ -328,7 +653,7 @@ int main()
     // check_bit_rev_perm<32>();
     // check_bit_rev_perm<64>();
     // check_bit_rev_perm<128>();
-    // check_bit_rev_perm<256>(); 
+    // check_bit_rev_perm<256>();
 
     // check_fft_ditime<1>();
     // check_fft_ditime<2>();
@@ -348,7 +673,9 @@ int main()
     // check_fft_difreq<32>();
     // check_fft_difreq<64>();
     // check_fft_difreq<128>();
-    check_fft_difreq<256>();
+    // check_fft_difreq<256>();
+
+    // check_fft_inv<1>();
 
     int N = transformLen;
     const int order = (int)(std::log((double)N) / std::log(2.0));
@@ -399,9 +726,9 @@ int main()
 
         if (transformLen >= 16)
         {
-            BitRevPermImpl<Double4Avx2Spec> bit_rev_perm_impl(transformLen);
+            BitRevPermImpl<Double2Sse2Spec> bit_rev_perm_impl(transformLen);
 
-            bench.run("bit_rev_perm_impl", [&]()
+            bench.run("bit_rev_perm_impl2", [&]()
                       { bit_rev_perm_impl.eval(XX.data(), XX.data() + transformLen, XX.data(), XX.data() + transformLen); });
         }
 
@@ -498,7 +825,7 @@ int main()
     // // Query to get buffer sizes
     // int sizeFFTSpec,sizeFFTInitBuf,sizeFFTWorkBuf;
     // ippsFFTGetSize_C_64fc(order, IPP_FFT_NODIV_BY_ANY,
-    //     ippAlgHintAccurate, &sizeFFTSpec, &sizeFFTInitBuf, &sizeFFTWorkBuf);
+    //     ippAlgHintFast, &sizeFFTSpec, &sizeFFTInitBuf, &sizeFFTWorkBuf);
 
     // // Alloc FFT buffers
     // pFFTSpecBuf = ippsMalloc_8u(sizeFFTSpec);
@@ -507,7 +834,7 @@ int main()
 
     // // Initialize FFT
     // ippsFFTInit_C_64fc(&pFFTSpec, order, IPP_FFT_NODIV_BY_ANY,
-    //     ippAlgHintAccurate, pFFTSpecBuf, pFFTInitBuf);
+    //     ippAlgHintFast, pFFTSpecBuf, pFFTInitBuf);
     // if (pFFTInitBuf) ippFree(pFFTInitBuf);
 
     //         ippsFFTFwd_CToC_64fc(pSrc,pDst,pFFTSpec,pFFTWorkBuf);
