@@ -10,6 +10,7 @@
 #include "afft/radix/radix_type.hpp"
 #include "afft/butterfly/twiddles.hpp"
 #include "afft/log_n_samples_per_operand.hpp"
+#include "afft/bit_reverse_permutation/plan_indexes_manipulation.hpp"
 
 namespace afft
 {
@@ -18,18 +19,31 @@ namespace afft
     {
         static_assert(Spec::n_samples_per_operand == 1, "Butterfly must use sample spec");
 
-        LogNSamplesPerOperand log_n_samples_per_operand_;
+        std::size_t log_n_samples_per_operand_;
+        std::size_t n_stockham_radix_stages_;
+        std::size_t n_samples_;
         std::vector<RadixStage<Spec>> radix_stages_;
-        std::vector<typename Spec::sample, Allocator> compound_radix_twiddles_real_;
-        std::vector<typename Spec::sample, Allocator> compound_radix_twiddles_imag_;
         std::vector<std::vector<std::vector<typename Spec::sample, Allocator>>> twiddles_real_;
         std::vector<std::vector<std::vector<typename Spec::sample, Allocator>>> twiddles_imag_;
+        std::vector<std::size_t> out_indexes;
+        std::vector<std::size_t> in_indexes;
+        std::vector<std::size_t> inout_indexes;
         typename Spec::sample scaling_factor_;
 
     public:
-        const LogNSamplesPerOperand &log_n_samples_per_operand() const
+        const std::size_t &log_n_samples_per_operand() const
         {
             return log_n_samples_per_operand_;
+        }
+
+        const std::size_t &n_stockham_radix_stages() const
+        {
+            return n_stockham_radix_stages_;
+        }
+
+        const std::size_t &n_samples() const
+        {
+            return n_samples_;
         }
 
         // Getter for radix_stages_
@@ -67,10 +81,11 @@ namespace afft
             return scaling_factor_;
         }
 
-        ButterflyPlan(std::size_t n_samples, std::size_t max_n_samples_per_operand)
+        ButterflyPlan(std::size_t n_samples, std::size_t max_n_samples_per_operand) : n_samples_(n_samples)
         {
             namespace tw = afft::twiddles;
             namespace cm = afft::common_math;
+            namespace pim = afft::plan_indexes_manipulation;
             using sample = typename Spec::sample;
 
             scaling_factor_ = sample(1) / sample(n_samples);
@@ -80,17 +95,39 @@ namespace afft
                 return;
             }
 
-            auto log_n_samples_per_operand_as_size_t =
+            auto log_n_samples_per_operand_ =
                 std::min(
                     cm::int_log_2(max_n_samples_per_operand),
                     std::size_t(cm::int_log_2(n_samples / 2)));
 
-            std::size_t n_samples_per_operand = 1 << log_n_samples_per_operand_as_size_t;
+            std::size_t n_samples_per_operand = 1 << log_n_samples_per_operand_;
 
-            log_n_samples_per_operand_ =
-                as_log_n_samples_per_operand(
-                    log_n_samples_per_operand_as_size_t);
+            std::size_t indexes_len;
+            if (n_samples == 2 * n_samples_per_operand) {
+                indexes_len = n_samples / n_samples_per_operand / 2;
+            } 
+            else {
+                indexes_len = n_samples / n_samples_per_operand / 4;
+            }
 
+            for (std::size_t i = 0; i < indexes_len; i++) {
+                inout_indexes.append(i);
+            }
+
+            auto pair_indexes = ordered_bit_rev_indexes(indexes_len);
+            in_indexes = pair_indexes.first;
+            out_indexes = pair_indexes.second;
+
+            if (n_samples == 2 * n_samples_per_operand) {
+                // Stockham x2
+                return;
+            }
+
+            // Stockham x4
+
+
+            // Cooley Tukey
+            
             if (n_samples == n_samples_per_operand * 2)
             {
                 compound_radix_twiddles_real_ = tw::compound_radix2_twiddles_real<Spec, Allocator>(n_samples_per_operand);
@@ -163,20 +200,6 @@ namespace afft
                     radix_stages_.push_back(radix_stage_);
                     subtwiddle_len *= 4;
                 }
-            }
-
-            // Carry Radix Stages is for a opening (potentially) out-of-place radix stage, mostly
-            // for Decimation-In-Frequency (DIF), as the carry radix stage is the first radix stage for DIF, and the last radix stage for DIT.
-            // Most other radix stages are executed in-place. The first radix stage for DIT will always be a Compound Radix Stage.
-            auto &carry_radix_stage = radix_stages_.back();
-
-            if (carry_radix_stage.type == RadixType::radix4)
-            {
-                carry_radix_stage.type = RadixType::carry_radix4;
-            }
-            else if (carry_radix_stage.type == RadixType::compound_radix4)
-            {
-                carry_radix_stage.type = RadixType::carry_compound_radix4;
             }
         }
 
