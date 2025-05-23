@@ -24,89 +24,42 @@ namespace afft
             *ptr = x;
         }
 
-        static inline void transpose_diagonal(sample *out_real, sample *out_imag, const sample *in_real, const sample *in_imag, const std::size_t *offsets)
-        {
-            std::size_t offsets0 = offsets[0];
-            auto tmp_real = *(in_real + offsets0);
-            auto tmp_imag = *(in_imag + offsets0);
-            *(out_real + offsets0) = tmp_real;
-            *(out_imag + offsets0) = tmp_imag;
-        }
-
-        static inline void transpose_off_diagonal(sample *out_real, sample *out_imag, const sample *in_real, const sample *in_imag, const std::size_t *offsets)
-        {
-            std::size_t offsets0 = offsets[0];
-            std::size_t offsets1 = offsets[1];
-
-            auto tmp0_real = *(in_real + offsets0);
-            auto tmp0_imag = *(in_imag + offsets0);
-            auto tmp1_real = *(in_real + offsets1);
-            auto tmp1_imag = *(in_imag + offsets1);
-
-            *(out_real + offsets1) = tmp0_real;
-            *(out_imag + offsets1) = tmp0_imag;
-            *(out_real + offsets0) = tmp1_real;
-            *(out_imag + offsets0) = tmp1_imag;
-        }
-
-        static inline sample sin(const sample &x)
-        {
+        static inline sample sin(const sample &x) {
             return std::sin(x);
         }
 
-        static inline sample cos(const sample &x)
-        {
+        static inline sample cos(const sample &x) {
             return std::cos(x);
         }
 
-        static inline sample pi()
-        {
-            return sample(std::acos(-1.0));
+        static inline sample pi() {
+            return sample(3.14159265358979323846L);
         }
 
-        static inline void interleave2(
-            operand &out_real_a, operand &out_imag_a,
-            operand &out_real_b, operand &out_imag_b,
-            const operand &in_real_a, const operand &in_imag_a,
-            const operand &in_real_b, const operand &in_imag_b)
-        {
-            // Do Nothing
-        }
-
-        static inline void deinterleave2(
-            operand &out_real_a, operand &out_imag_a,
-            operand &out_real_b, operand &out_imag_b,
-            const operand &in_real_a, const operand &in_imag_a,
-            const operand &in_real_b, const operand &in_imag_b)
-        {
-            // Do Nothing
-        }
-
+        template <std::size_t LogInterleaveFactor>
         static inline void interleave4(
-            operand &out_real_a, operand &out_imag_a,
-            operand &out_real_b, operand &out_imag_b,
-            operand &out_real_c, operand &out_imag_c,
-            operand &out_real_d, operand &out_imag_d,
-            const operand &in_real_a, const operand &in_imag_a,
-            const operand &in_real_b, const operand &in_imag_b,
-            const operand &in_real_c, const operand &in_imag_c,
-            const operand &in_real_d, const operand &in_imag_d)
-        {
+            operand &out_a, 
+            operand &out_b, 
+            operand &out_c,
+            operand &out_d,
+            operand in_a, 
+            operand in_b, 
+            operand in_c,
+            operand in_d
+        ) {
             // Do Nothing
         }
 
-        static inline void deinterleave4(
-            operand &out_real_a, operand &out_imag_a,
-            operand &out_real_b, operand &out_imag_b,
-            operand &out_real_c, operand &out_imag_c,
-            operand &out_real_d, operand &out_imag_d,
-            const operand &in_real_a, const operand &in_imag_a,
-            const operand &in_real_b, const operand &in_imag_b,
-            const operand &in_real_c, const operand &in_imag_c,
-            const operand &in_real_d, const operand &in_imag_d)
-        {
+        template <std::size_t LogInterleaveFactor>
+        static inline void interleave2(
+            operand &out_a, 
+            operand &out_b, 
+            operand in_a, 
+            operand in_b
+        ) {
             // Do Nothing
         }
+
     };
 }
 

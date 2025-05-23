@@ -54,7 +54,7 @@ namespace afft
 
 
         template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
-        std::vector<std::vector<typename Spec::sample, Allocator>> cooley_radix2_twiddles_real(std::size_t subtwiddle_len){
+        std::vector<std::vector<typename Spec::sample, Allocator>> ct_radix2_twiddles_real(std::size_t subtwiddle_len){
             std::vector<std::vector<typename Spec::sample, Allocator>> res_;
 
             res_.push_back(subtwiddle_real<Spec, Allocator>(subtwiddle_len, typename Spec::sample(1)));
@@ -63,7 +63,7 @@ namespace afft
         }
 
         template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
-        std::vector<std::vector<typename Spec::sample, Allocator>> cooley_radix2_twiddles_imag(std::size_t subtwiddle_len){
+        std::vector<std::vector<typename Spec::sample, Allocator>> ct_radix2_twiddles_imag(std::size_t subtwiddle_len){
             std::vector<std::vector<typename Spec::sample, Allocator>> res_;
 
             res_.push_back(subtwiddle_imag<Spec, Allocator>(subtwiddle_len, typename Spec::sample(1)));
@@ -72,7 +72,7 @@ namespace afft
         }
 
         template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
-        std::vector<std::vector<typename Spec::sample, Allocator>> cooley_radix4_twiddles_real(std::size_t subtwiddle_len){
+        std::vector<std::vector<typename Spec::sample, Allocator>> ct_radix4_twiddles_real(std::size_t subtwiddle_len){
             std::vector<std::vector<typename Spec::sample, Allocator>> res_;
 
             res_.push_back(subtwiddle_real<Spec, Allocator>(subtwiddle_len, typename Spec::sample(1)));
@@ -83,7 +83,7 @@ namespace afft
         }
 
         template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
-        std::vector<std::vector<typename Spec::sample, Allocator>> cooley_radix4_twiddles_imag(std::size_t subtwiddle_len){
+        std::vector<std::vector<typename Spec::sample, Allocator>> ct_radix4_twiddles_imag(std::size_t subtwiddle_len){
             std::vector<std::vector<typename Spec::sample, Allocator>> res_;
 
             res_.push_back(subtwiddle_imag<Spec, Allocator>(subtwiddle_len, typename Spec::sample(1)));
@@ -94,13 +94,13 @@ namespace afft
         }
 
         template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
-        std::vector<std::vector<typename Spec::sample, Allocator>> stockham_radix2_twiddles_real(std::size_t subtwiddle_len){
+        std::vector<std::vector<typename Spec::sample, Allocator>> s_radix2_twiddles_real(std::size_t subtwiddle_len, std::size_t n_samples_per_operand){
             std::vector<std::vector<typename Spec::sample, Allocator>> res_;
 
             res_.push_back(
                 repeat(
                     subtwiddle_real<Spec, Allocator>(subtwiddle_len, typename Spec::sample(1)),
-                    Spec::n_samples_per_operand / subtwiddle_len;
+                    n_samples_per_operand / subtwiddle_len
                 )
             );
 
@@ -108,13 +108,13 @@ namespace afft
         }
 
         template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
-        std::vector<std::vector<typename Spec::sample, Allocator>> stockham_radix2_twiddles_imag(std::size_t subtwiddle_len){
+        std::vector<std::vector<typename Spec::sample, Allocator>> s_radix2_twiddles_imag(std::size_t subtwiddle_len, std::size_t n_samples_per_operand){
             std::vector<std::vector<typename Spec::sample, Allocator>> res_;
 
             res_.push_back(
                 repeat(
                     subtwiddle_imag<Spec, Allocator>(subtwiddle_len, typename Spec::sample(1)),
-                    Spec::n_samples_per_operand / subtwiddle_len;
+                    n_samples_per_operand / subtwiddle_len
                 )
             );
 
@@ -122,27 +122,27 @@ namespace afft
         }
 
         template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
-        std::vector<std::vector<typename Spec::sample, Allocator>> stockham_radix4_twiddles_real(std::size_t subtwiddle_len){
+        std::vector<std::vector<typename Spec::sample, Allocator>> s_radix4_twiddles_real(std::size_t subtwiddle_len, std::size_t n_samples_per_operand){
             std::vector<std::vector<typename Spec::sample, Allocator>> res_;
 
             res_.push_back(
                 repeat(
                     subtwiddle_real<Spec, Allocator>(subtwiddle_len, typename Spec::sample(1)),
-                    Spec::n_samples_per_operand / subtwiddle_len;
+                    n_samples_per_operand / subtwiddle_len
                 )
             );
 
             res_.push_back(
                 repeat(
                     subtwiddle_real<Spec, Allocator>(subtwiddle_len, typename Spec::sample(0.5)),
-                    Spec::n_samples_per_operand / subtwiddle_len;
+                    n_samples_per_operand / subtwiddle_len
                 )
             );
 
             res_.push_back(
                 repeat(
                     subtwiddle_real<Spec, Allocator>(subtwiddle_len, typename Spec::sample(1.5)),
-                    Spec::n_samples_per_operand / subtwiddle_len;
+                    n_samples_per_operand / subtwiddle_len
                 )
             );
 
@@ -150,27 +150,27 @@ namespace afft
         }
 
         template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
-        std::vector<std::vector<typename Spec::sample, Allocator>> stockham_radix4_twiddles_imag(std::size_t subtwiddle_len){
+        std::vector<std::vector<typename Spec::sample, Allocator>> s_radix4_twiddles_imag(std::size_t subtwiddle_len, std::size_t n_samples_per_operand){
             std::vector<std::vector<typename Spec::sample, Allocator>> res_;
 
             res_.push_back(
                 repeat(
                     subtwiddle_imag<Spec, Allocator>(subtwiddle_len, typename Spec::sample(1)),
-                    Spec::n_samples_per_operand / subtwiddle_len;
+                    n_samples_per_operand / subtwiddle_len
                 )
             );
 
             res_.push_back(
                 repeat(
                     subtwiddle_imag<Spec, Allocator>(subtwiddle_len, typename Spec::sample(0.5)),
-                    Spec::n_samples_per_operand / subtwiddle_len;
+                    n_samples_per_operand / subtwiddle_len
                 )
             );
 
             res_.push_back(
                 repeat(
                     subtwiddle_imag<Spec, Allocator>(subtwiddle_len, typename Spec::sample(1.5)),
-                    Spec::n_samples_per_operand / subtwiddle_len;
+                    n_samples_per_operand / subtwiddle_len
                 )
             );
 

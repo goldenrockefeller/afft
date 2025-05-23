@@ -9,7 +9,6 @@
 #include "afft/radix/radix_stage.hpp"
 #include "afft/radix/radix_type.hpp"
 #include "afft/butterfly/twiddles.hpp"
-#include "afft/log_n_samples_per_operand.hpp"
 #include "afft/bit_reverse_permutation/plan_indexes_manipulation.hpp"
 
 namespace afft
@@ -20,7 +19,7 @@ namespace afft
         static_assert(Spec::n_samples_per_operand == 1, "Butterfly must use sample spec");
 
         std::size_t log_n_samples_per_operand_;
-        std::size_t n_stockham_radix_stages_;
+        std::size_t n_s_radix_stages_;
         std::size_t n_samples_;
         std::vector<RadixStage<Spec>> radix_stages_;
         std::vector<std::vector<std::vector<typename Spec::sample, Allocator>>> twiddles_real_;
@@ -36,9 +35,9 @@ namespace afft
             return log_n_samples_per_operand_;
         }
 
-        const std::size_t &n_stockham_radix_stages() const
+        const std::size_t &n_s_radix_stages() const
         {
-            return n_stockham_radix_stages_;
+            return n_s_radix_stages_;
         }
 
         const std::size_t &n_samples() const
@@ -50,18 +49,6 @@ namespace afft
         const std::vector<RadixStage<Spec>> &radix_stages() const
         {
             return radix_stages_;
-        }
-
-        // Getter for compound_radix_twiddles_real_
-        const std::vector<typename Spec::sample, Allocator> &compound_radix_twiddles_real() const
-        {
-            return compound_radix_twiddles_real_;
-        }
-
-        // Getter for compound_radix_twiddles_imag_
-        const std::vector<typename Spec::sample, Allocator> &compound_radix_twiddles_imag() const
-        {
-            return compound_radix_twiddles_imag_;
         }
 
         // Getter for twiddles_real_
@@ -89,13 +76,14 @@ namespace afft
             using sample = typename Spec::sample;
 
             scaling_factor_ = sample(1) / sample(n_samples);
+            n_s_radix_stages_ = 0;
 
             if (n_samples <= 1)
             {
                 return;
             }
 
-            auto log_n_samples_per_operand_ =
+            log_n_samples_per_operand_ =
                 std::min(
                     cm::int_log_2(max_n_samples_per_operand),
                     std::size_t(cm::int_log_2(n_samples / 2)));
@@ -111,80 +99,184 @@ namespace afft
             }
 
             for (std::size_t i = 0; i < indexes_len; i++) {
-                inout_indexes.append(i);
+                inout_indexes.push_back(i);
             }
 
-            auto pair_indexes = ordered_bit_rev_indexes(indexes_len);
+            auto pair_indexes = pim::ordered_bit_rev_indexes(indexes_len);
             in_indexes = pair_indexes.first;
             out_indexes = pair_indexes.second;
 
+            std::size_t subtwiddle_len = 1;
+            std::size_t log_subtwiddle_len = 0;
+            
             if (n_samples == 2 * n_samples_per_operand) {
-                // Stockham x2
+                // Stockham x2 Interleave
+
+                while (subtwiddle_len < n_samples_per_operand) {
+                    auto stage_twiddles_real = tw::s_radix2_twiddles_real<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
+                    auto stage_twiddles_imag = tw::s_radix2_twiddles_imag<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
+                    twiddles_real_.push_back(stage_twiddles_real);
+                    twiddles_imag_.push_back(stage_twiddles_imag);
+
+                    RadixStage<Spec> radix_stage_;
+                    radix_stage_.type = RadixType::s_radix2;
+                    radix_stage_.tw_real_b = twiddles_real_.back()[0].data();
+                    radix_stage_.tw_imag_b = twiddles_imag_.back()[0].data();
+                    radix_stage_.out_indexes = inout_indexes.data();
+                    radix_stage_.in_indexes = inout_indexes.data();
+                    radix_stage_.subfft_id_start = 0;
+                    radix_stage_.subfft_id_end = n_samples / n_samples_per_operand / 2;
+                    radix_stage_.log_subtwiddle_len = log_subtwiddle_len;
+                    radix_stage_.n_samples = n_samples;
+
+                    radix_stages_.push_back(radix_stage_);
+                    subtwiddle_len *= 2;
+                    log_subtwiddle_len += 1;
+                    n_s_radix_stages_ += 1;
+
+                }
+                // Stockham x2 Permute
+                auto stage_twiddles_real = tw::s_radix2_twiddles_real<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
+                auto stage_twiddles_imag = tw::s_radix2_twiddles_imag<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
+                twiddles_real_.push_back(stage_twiddles_real);
+                twiddles_imag_.push_back(stage_twiddles_imag);
+
+
+                RadixStage<Spec> radix_stage_;
+                radix_stage_.type = RadixType::s_radix2;
+                radix_stage_.tw_real_b = twiddles_real_.back()[0].data();
+                radix_stage_.tw_imag_b = twiddles_imag_.back()[0].data();
+                radix_stage_.out_indexes = out_indexes.data();
+                radix_stage_.in_indexes = in_indexes.data();
+                radix_stage_.subfft_id_start = 0;
+                radix_stage_.subfft_id_end = n_samples / n_samples_per_operand / 2;
+                radix_stage_.log_subtwiddle_len = log_subtwiddle_len;
+                radix_stage_.n_samples = n_samples;
+
+                radix_stages_.push_back(radix_stage_);
+                subtwiddle_len *= 2;
+                log_subtwiddle_len += 1;
+                n_s_radix_stages_ += 1;
+
                 return;
             }
 
-            // Stockham x4
 
+            // Stockham x4 Interleave
+            while (subtwiddle_len * 4 <= n_samples_per_operand) {
+                auto stage_twiddles_real = tw::s_radix4_twiddles_real<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
+                auto stage_twiddles_imag = tw::s_radix4_twiddles_imag<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
+                twiddles_real_.push_back(stage_twiddles_real);
+                twiddles_imag_.push_back(stage_twiddles_imag);
+
+                RadixStage<Spec> radix_stage_;
+                radix_stage_.type = RadixType::s_radix4;
+                radix_stage_.tw_real_b = twiddles_real_.back()[0].data();
+                radix_stage_.tw_imag_b = twiddles_imag_.back()[0].data();
+                radix_stage_.tw_real_c = twiddles_real_.back()[1].data();
+                radix_stage_.tw_imag_c = twiddles_imag_.back()[1].data();
+                radix_stage_.tw_real_d = twiddles_real_.back()[2].data();
+                radix_stage_.tw_imag_d = twiddles_imag_.back()[2].data();
+                radix_stage_.out_indexes = inout_indexes.data();
+                radix_stage_.in_indexes = inout_indexes.data();
+                radix_stage_.subfft_id_start = 0;
+                radix_stage_.subfft_id_end = n_samples / n_samples_per_operand / 4;
+                radix_stage_.log_subtwiddle_len = log_subtwiddle_len;
+                radix_stage_.n_samples = n_samples;
+
+                radix_stages_.push_back(radix_stage_);
+                subtwiddle_len *= 4;
+                log_subtwiddle_len += 2;
+                n_s_radix_stages_ += 1;
+            }
+
+            // Stockham x2 Interleave
+            if (subtwiddle_len < n_samples_per_operand) {
+
+                auto stage_twiddles_real = tw::s_radix2_twiddles_real<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
+                auto stage_twiddles_imag = tw::s_radix2_twiddles_imag<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
+                twiddles_real_.push_back(stage_twiddles_real);
+                twiddles_imag_.push_back(stage_twiddles_imag);
+                
+                RadixStage<Spec> radix_stage_;
+                radix_stage_.type = RadixType::s_radix2;
+                radix_stage_.tw_real_b = twiddles_real_.back()[0].data();
+                radix_stage_.tw_imag_b = twiddles_imag_.back()[0].data();
+                radix_stage_.out_indexes = inout_indexes.data();
+                radix_stage_.in_indexes = inout_indexes.data();
+                radix_stage_.subfft_id_start = 0;
+                radix_stage_.subfft_id_end = n_samples / n_samples_per_operand / 2;
+                radix_stage_.log_subtwiddle_len = log_subtwiddle_len;
+                radix_stage_.n_samples = n_samples;
+
+                radix_stages_.push_back(radix_stage_);
+                subtwiddle_len *= 2;
+                log_subtwiddle_len += 1;
+                n_s_radix_stages_ += 1;
+            }
+
+            // Stockham x4 Permute
+            auto stage_twiddles_real = tw::s_radix4_twiddles_real<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
+            auto stage_twiddles_imag = tw::s_radix4_twiddles_imag<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
+            twiddles_real_.push_back(stage_twiddles_real);
+            twiddles_imag_.push_back(stage_twiddles_imag);
+
+            RadixStage<Spec> radix_stage_;
+            radix_stage_.type = RadixType::s_radix4;
+            radix_stage_.tw_real_b = twiddles_real_.back()[0].data();
+            radix_stage_.tw_imag_b = twiddles_imag_.back()[0].data();
+            radix_stage_.tw_real_c = twiddles_real_.back()[1].data();
+            radix_stage_.tw_imag_c = twiddles_imag_.back()[1].data();
+            radix_stage_.tw_real_d = twiddles_real_.back()[2].data();
+            radix_stage_.tw_imag_d = twiddles_imag_.back()[2].data();
+            radix_stage_.out_indexes = out_indexes.data();
+            radix_stage_.in_indexes = in_indexes.data();
+            radix_stage_.subfft_id_start = 0;
+            radix_stage_.subfft_id_end = n_samples / n_samples_per_operand / 4;
+            radix_stage_.log_subtwiddle_len = log_subtwiddle_len;
+            radix_stage_.n_samples = n_samples;
+
+            radix_stages_.push_back(radix_stage_);
+            subtwiddle_len *= 4;
+            log_subtwiddle_len += 2;
+            n_s_radix_stages_ += 1;
 
             // Cooley Tukey
-            
-            if (n_samples == n_samples_per_operand * 2)
-            {
-                compound_radix_twiddles_real_ = tw::compound_radix2_twiddles_real<Spec, Allocator>(n_samples_per_operand);
-                compound_radix_twiddles_imag_ = tw::compound_radix2_twiddles_imag<Spec, Allocator>(n_samples_per_operand);
-
-                RadixStage<Spec> compound_radix_stage_;
-                compound_radix_stage_.type = RadixType::compound_radix2;
-                compound_radix_stage_.tw_real_b = compound_radix_twiddles_real_.data();
-                compound_radix_stage_.tw_imag_b = compound_radix_twiddles_imag_.data();
-                radix_stages_.push_back(compound_radix_stage_);
-                return;
-            }
-
-            // else n_samples >= n_samples_per_operand * 4
-            compound_radix_twiddles_real_ = tw::compound_radix4_twiddles_real<Spec, Allocator>(n_samples_per_operand);
-            compound_radix_twiddles_imag_ = tw::compound_radix4_twiddles_imag<Spec, Allocator>(n_samples_per_operand);
-
-            RadixStage<Spec> compound_radix_stage_;
-            compound_radix_stage_.type = RadixType::compound_radix4;
-            compound_radix_stage_.tw_real_b = compound_radix_twiddles_real_.data();
-            compound_radix_stage_.tw_imag_b = compound_radix_twiddles_imag_.data();
-            compound_radix_stage_.subfft_id_start = 0;
-            compound_radix_stage_.subfft_id_end = n_samples / n_samples_per_operand / 4;
-            radix_stages_.push_back(compound_radix_stage_);
-
-            auto subtwiddle_len = n_samples_per_operand * 4;
-
+            bool is_first_ct_radix_stage = true;
             while (subtwiddle_len < n_samples)
             {
 
                 if (2 * subtwiddle_len == n_samples)
                 {
                     RadixStage<Spec> radix_stage_;
-                    auto stage_twiddles_real = tw::radix2_twiddles_real<Spec, Allocator>(subtwiddle_len);
-                    auto stage_twiddles_imag = tw::radix2_twiddles_imag<Spec, Allocator>(subtwiddle_len);
+                    auto stage_twiddles_real = tw::ct_radix2_twiddles_real<Spec, Allocator>(subtwiddle_len);
+                    auto stage_twiddles_imag = tw::ct_radix2_twiddles_imag<Spec, Allocator>(subtwiddle_len);
                     twiddles_real_.push_back(stage_twiddles_real);
                     twiddles_imag_.push_back(stage_twiddles_imag);
 
-                    radix_stage_.type = RadixType::radix2;
+                    radix_stage_.type = RadixType::ct_radix2;
                     radix_stage_.tw_real_b = twiddles_real_.back()[0].data();
                     radix_stage_.tw_imag_b = twiddles_imag_.back()[0].data();
                     radix_stage_.subtwiddle_len = subtwiddle_len;
                     radix_stage_.subtwiddle_start = 0;
                     radix_stage_.subtwiddle_end = subtwiddle_len;
+                    radix_stage_.is_first_ct_radix_stage = is_first_ct_radix_stage;
 
                     radix_stages_.push_back(radix_stage_);
+                    subtwiddle_len *= 2;
+                    log_subtwiddle_len += 1;
+                    is_first_ct_radix_stage = false;
                     break;
                 }
                 else
                 {
                     RadixStage<Spec> radix_stage_;
-                    auto stage_twiddles_real = tw::radix4_twiddles_real<Spec, Allocator>(subtwiddle_len);
-                    auto stage_twiddles_imag = tw::radix4_twiddles_imag<Spec, Allocator>(subtwiddle_len);
+                    auto stage_twiddles_real = tw::ct_radix4_twiddles_real<Spec, Allocator>(subtwiddle_len);
+                    auto stage_twiddles_imag = tw::ct_radix4_twiddles_imag<Spec, Allocator>(subtwiddle_len);
                     twiddles_real_.push_back(stage_twiddles_real);
                     twiddles_imag_.push_back(stage_twiddles_imag);
 
-                    radix_stage_.type = RadixType::radix4;
+                    radix_stage_.type = RadixType::ct_radix4;
                     radix_stage_.tw_real_b = twiddles_real_.back()[0].data();
                     radix_stage_.tw_imag_b = twiddles_imag_.back()[0].data();
                     radix_stage_.tw_real_c = twiddles_real_.back()[1].data();
@@ -196,9 +288,12 @@ namespace afft
                     radix_stage_.subtwiddle_len = subtwiddle_len;
                     radix_stage_.subtwiddle_start = 0;
                     radix_stage_.subtwiddle_end = subtwiddle_len;
+                    radix_stage_.is_first_ct_radix_stage = is_first_ct_radix_stage;
 
                     radix_stages_.push_back(radix_stage_);
                     subtwiddle_len *= 4;
+                    log_subtwiddle_len += 2;
+                    is_first_ct_radix_stage = false;
                 }
             }
         }
@@ -211,12 +306,23 @@ namespace afft
             std::vector<std::size_t> open_radix_stage_partition_counts;
             std::vector<std::size_t> open_radix_stage_partition_ids;
 
-            auto iterative_radix_stages = radix_stages_;
+            auto initial_radix_stages = radix_stages_;
             radix_stages_.clear();
+            auto reversed_radix_stages_ = radix_stages_;
 
-            open_radix_stage_ids.push_back(iterative_radix_stages.size() - 1);
+            // Add the Stockham stages back in 
+            for (std::size_t stage_id = 0; stage_id < n_s_radix_stages_; stage_id++) {
+                radix_stages_.push_back(initial_radix_stages[stage_id]);
+            }
+
+            if (radix_stages_.size() == initial_radix_stages.size()) {
+                return;
+            }
+
+            open_radix_stage_ids.push_back(initial_radix_stages.size() - 1);
             open_radix_stage_partition_counts.push_back(1);
             open_radix_stage_partition_ids.push_back(0);
+
 
             while (open_radix_stage_ids.size() > 0)
             {
@@ -230,28 +336,36 @@ namespace afft
                 open_radix_stage_partition_ids.pop_back();
 
                 std::size_t sub_stage_partition_count;
-                auto radix_stage = iterative_radix_stages[radix_stage_id];
+                auto radix_stage = initial_radix_stages[radix_stage_id];
 
                 auto radix_stage_partition = radix_stage;
                 radix_stage_partition.subfft_id_start = radix_stage.subfft_id_end * radix_stage_partition_id / radix_stage_partition_count;
                 radix_stage_partition.subfft_id_end = radix_stage.subfft_id_end * (radix_stage_partition_id + 1) / radix_stage_partition_count;
-                radix_stages_.push_back(radix_stage_partition);
+                reversed_radix_stages_.push_back(radix_stage_partition);
 
                 switch (radix_stage.type)
                 {
-                case RadixType::radix4:
-                case RadixType::carry_radix4:
-                case RadixType::compound_radix4:
-                case RadixType::carry_compound_radix4:
+                case RadixType::ct_radix4:
                     sub_stage_partition_count = 4;
                     break;
-
-                case RadixType::radix2:
-                case RadixType::compound_radix2:
+                case RadixType::s_radix4:
+                    break;
+                case RadixType::ct_radix2:
                     sub_stage_partition_count = 2;
+                    break;
+                case RadixType::s_radix2:
                     break;
                 }
 
+                if (initial_radix_stages[radix_stage_id].type == RadixType::s_radix4) {
+                    continue; // Don't partition Stockham Stages
+                }
+
+                if (initial_radix_stages[radix_stage_id].type == RadixType::s_radix2) {
+                    continue; // Don't partition Stockham Stages
+                }
+
+                
                 if (n_samples / sub_stage_partition_count / radix_stage_partition_count > min_partition_len)
                 {
                     for (std::size_t i = 0; i < sub_stage_partition_count; i++)
@@ -261,19 +375,33 @@ namespace afft
                         open_radix_stage_partition_ids.push_back(sub_stage_partition_count * radix_stage_partition_id + i);
                     }
                 }
+
                 else
                 {
                     for (; radix_stage_id-- > 0;)
                     {
-                        radix_stage = iterative_radix_stages[radix_stage_id];
+                        if (initial_radix_stages[radix_stage_id].type == RadixType::s_radix4) {
+                            break; // Don't re-add Stockham Stages
+                        }
+
+                        if (initial_radix_stages[radix_stage_id].type == RadixType::s_radix2) {
+                            break; // Don't re-add Stockham Stages
+                        }
+
+                        radix_stage = initial_radix_stages[radix_stage_id];
                         radix_stage_partition = radix_stage;
                         radix_stage_partition.subfft_id_start = radix_stage.subfft_id_end * radix_stage_partition_id / radix_stage_partition_count;
                         radix_stage_partition.subfft_id_end = radix_stage.subfft_id_end * (radix_stage_partition_id + 1) / radix_stage_partition_count;
-                        radix_stages_.push_back(radix_stage_partition);
+                        reversed_radix_stages_.push_back(radix_stage_partition);
                     }
                 }
             }
-            std::reverse(radix_stages_.begin(), radix_stages_.end());
+
+            radix_stages_.insert(
+                radix_stages_.end(),
+                reversed_radix_stages_.rbegin(),
+                reversed_radix_stages_.rend()
+            );
         }
     };
 }

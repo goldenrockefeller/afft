@@ -200,56 +200,30 @@ namespace afft
             return destinations;
         }
 
-        std::pair<std::vector<std::size_t>, std::vector<std::size_t>> ordered_bit_rev_indexes(std::size_t n_indexes):
-            auto mats = indexes_as_mats(n_indexes)
+        std::pair<std::vector<std::size_t>, std::vector<std::size_t>> ordered_bit_rev_indexes(std::size_t n_indexes){
+            auto mats = indexes_as_mats(n_indexes);
 
             std::vector<std::size_t> in_indexes;
             std::vector<std::size_t> out_indexes;
 
             for (auto mat : mats){
-                mat = bit_rev_permute_rows(mat)
-                auto indexes = plan_transpose_diagonal_indexes(mat, 1)
+                mat = bit_rev_permute_rows(mat);
+                auto indexes = plan_transpose_diagonal_indexes(mat, 1);
                 for (auto pair_indexes : indexes) {
                     if (pair_indexes[0][0] == pair_indexes[1][0]) {
-                        in_indexes.append(pair_indexes[0][0])
-                        out_indexes.append(pair_indexes[0][0])
+                        in_indexes.push_back(pair_indexes[0][0]);
+                        out_indexes.push_back(pair_indexes[0][0]);
                     }
                     else
                     {
-                        in_indexes.append(pair_indexes[1][0])
-                        out_indexes.append(pair_indexes[0][0])
-                        in_indexes.append(pair_indexes[0][0])
-                        out_indexes.append(pair_indexes[1][0])
+                        in_indexes.push_back(pair_indexes[1][0]);
+                        out_indexes.push_back(pair_indexes[0][0]);
+                        in_indexes.push_back(pair_indexes[0][0]);
+                        out_indexes.push_back(pair_indexes[1][0]);
                     }
                 }
             }
-            return {in_indexes, out_indexes}
-
-        std::vector<std::size_t> off_diagonal_streak_lens(const std::vector<std::vector<std::vector<std::size_t>>> &plan_transpose_pairs)
-        {
-            std::vector<std::size_t> streak_lens_;
-            std::size_t counter = 0;
-
-            for (const auto &pair : plan_transpose_pairs)
-            {
-                if (pair[0][0] == pair[1][0])
-                {
-                    if (counter != 0)
-                    {
-                        if (counter != 1)
-                        {
-                            streak_lens_.push_back(counter);
-                        }
-                        counter = 0;
-                    }
-                }
-                else
-                {
-                    counter += 1;
-                }
-            }
-
-            return streak_lens_;
+            return {in_indexes, out_indexes};
         }
     }
 }
