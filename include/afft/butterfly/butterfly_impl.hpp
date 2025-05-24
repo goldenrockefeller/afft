@@ -69,35 +69,21 @@ namespace afft
             stage_imag[1] = buf_imag;
             stage_imag[2] = out_imag;
 
-            std::size_t s_in_id = 0;
-            std::size_t s_out_id = 0;
+            std::size_t s_in_id;
+            std::size_t s_out_id;
 
-            if (Rescaling){
-                scaling_factor = plan.scaling_factor();
-            }
-            else {
-                scaling_factor = sample(1);
-            }
+            scaling_factor = plan.scaling_factor() * sample(Rescaling) + sample(Rescaling);
+            
+            s_out_id = 1 - std::size_t(plan.n_s_radix_stages() % 2);
 
-            if (plan.n_s_radix_stages() % 2 == 0)
-            {
-                s_out_id = 1;
-            }
-            else {
-                s_out_id = 0;
-            }
+            bool going_to_output 
+                = (plan.n_s_radix_stages() == 1)
+                && out_real != in_real
+                && out_imag != in_real
+                && out_real != in_imag
+                && out_imag != in_imag;
 
-            if (plan.n_s_radix_stages() == 1 ) {
-                if (
-                    out_real != in_real 
-                    && out_imag != in_real
-                    && out_real != in_imag 
-                    && out_imag != in_imag
-                ) {
-                    // Take stockholm output straight to output instead of buffer 
-                    s_out_id = 2;
-                }
-            }
+            s_out_id = s_out_id * (!going_to_output) + 2 * going_to_output;
 
             // First stage, always Stockholm, takes input to buffer_1 / buffer_2, perform rescaling
             {
@@ -145,39 +131,41 @@ namespace afft
                         radix_stage.n_samples,
                         scaling_factor);
                     break;
-                }
-            }
+                }                
+                if (!going_to_output && plan.radix_stages().size() == 1) {
+                    // Move stockholm from buffer to output
+                    for (std::size_t i = 0; i < plan.n_samples(); i+=Spec::n_samples_per_operand) {
+                        typename Spec::operand data_real;
+                        typename Spec::operand data_imag;
 
-            auto s_out_real = out_real;
-            auto s_out_imag = out_imag;
-            
-            if (plan.n_s_radix_stages() == 1 ) {
-                if (plan.radix_stages().size() == 1 ) {
-                    if (
-                        out_real == in_real 
-                        || out_imag == in_real
-                        || out_real == in_imag 
-                        || out_imag == in_imag
-                    ) {
-                        // Move stockholm from buffer to output
-                        std::memcpy(out_real, buf_real_2, sizeof(sample) * plan.n_samples());
-                        std::memcpy(out_imag, buf_imag_2, sizeof(sample) * plan.n_samples());
+                        Spec::load(data_real, buf_real_2 + i);
+                        Spec::load(data_imag, buf_imag_2 + i);
+
+                        Spec::store(out_real + i, data_real);
+                        Spec::store(out_imag + i, data_imag);
                     }
+                    return;
                 }
-
-                // Use cooley tukey to move data from buffer to output
-                s_out_real = buf_real_2;
-                s_out_imag = buf_imag_2;
             }
 
+            bool with_only_one_s_radix_stage = (plan.n_s_radix_stages() == 1 );
+            auto s_out_real = reinterpret_cast<sample *>(reinterpret_cast<std::size_t>(out_real) * (!with_only_one_s_radix_stage) + reinterpret_cast<std::size_t>(buf_real_2) * (with_only_one_s_radix_stage));
+            auto s_out_imag = reinterpret_cast<sample *>(reinterpret_cast<std::size_t>(out_imag) * (!with_only_one_s_radix_stage) + reinterpret_cast<std::size_t>(buf_imag_2) * (with_only_one_s_radix_stage));
+            
             // Stockholm flips between buffer and output, no rescaling, Cooley Tukey performs in-place on output
             for (std::size_t radix_stage_id = 1; radix_stage_id < plan.radix_stages().size(); radix_stage_id++)
             {
                 
                 const auto &radix_stage = plan.radix_stages()[radix_stage_id];
-
-                auto ct_in_real = radix_stage.is_first_ct_radix_stage ? s_out_real : out_real;
-                auto ct_in_imag = radix_stage.is_first_ct_radix_stage ? s_out_imag : out_imag;
+                bool is_first_ct_radix_stage = radix_stage.is_first_ct_radix_stage;
+                auto ct_in_real = reinterpret_cast<sample *>(
+                    reinterpret_cast<std::size_t>(s_out_real) * static_cast<std::size_t>(is_first_ct_radix_stage) +
+                    reinterpret_cast<std::size_t>(out_real) * static_cast<std::size_t>(!is_first_ct_radix_stage)
+                );
+                auto ct_in_imag = reinterpret_cast<sample *>(
+                    reinterpret_cast<std::size_t>(s_out_imag) * static_cast<std::size_t>(is_first_ct_radix_stage) +
+                    reinterpret_cast<std::size_t>(out_imag) * static_cast<std::size_t>(!is_first_ct_radix_stage)
+                );
 
                 switch (radix_stage.type)
                 {

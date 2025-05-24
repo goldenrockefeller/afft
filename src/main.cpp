@@ -389,7 +389,7 @@ void do_bench()
 {
     cout << "do_bench: " << endl;
     std::vector<std::size_t> trials;
-    for (std::size_t i = 1; i < 20; i++)
+    for (std::size_t i = 1; i < 18; i++)
     {
         trials.push_back(1 << i);
     }
@@ -398,10 +398,10 @@ void do_bench()
 
         ankerl::nanobench::Bench bench;
         ostringstream title_stream;
-        title_stream << "Br Size: " << n_samples;
+        title_stream << "n_samples: " << n_samples;
         bench.title(title_stream.str());
 
-        bench.minEpochIterations(10);
+        bench.minEpochIterations(100);
 
         const int order = int_log_2(n_samples);
         // Spec and working buffers
@@ -454,9 +454,12 @@ void do_bench()
         
         auto ot_fft = OTFFT::Factory::createComplexFFT(n_samples);
 
-        FftComplex<StdSpec<double>, xsimd::aligned_allocator<double, 1024>> fft_recursive(n_samples, 8192);
+        FftComplex<StdSpec<double>, xsimd::aligned_allocator<double, 1024>> fft_recursive(n_samples, 256);
         FftComplex<StdSpec<double>, xsimd::aligned_allocator<double, 1024>> fft_iterative(n_samples);
-        FftComplex<Double4Avx2Spec, xsimd::aligned_allocator<double, 1024>> simd_fft_recursive(n_samples, 8192);
+        FftComplex<Double4Avx2Spec, xsimd::aligned_allocator<double, 1024>> simd_fft_recursive128(n_samples, 128);
+        FftComplex<Double4Avx2Spec, xsimd::aligned_allocator<double, 1024>> simd_fft_recursive256(n_samples, 256);
+        FftComplex<Double4Avx2Spec, xsimd::aligned_allocator<double, 1024>> simd_fft_recursive512(n_samples, 512);
+        FftComplex<Double4Avx2Spec, xsimd::aligned_allocator<double, 1024>> simd_fft_recursive1024(n_samples, 1024);
         FftComplex<Double4Avx2Spec, xsimd::aligned_allocator<double, 1024>> simd_fft_iterative(n_samples);
 
         auto rng = RandomGenerator();
@@ -498,11 +501,20 @@ void do_bench()
         //           { fft_iterative.eval(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
 
 
-        bench.run("simd_fft_recursive", [&]()
-                  { simd_fft_recursive.eval(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
+        bench.run("AFFT", [&]()
+                  { simd_fft_recursive128.eval(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
 
-        bench.run("simd_fft_iterative", [&]()
-                  { simd_fft_iterative.eval(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
+        // bench.run("simd_fft_recursive256", [&]()
+        //           { simd_fft_recursive256.eval(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
+
+        // bench.run("simd_fft_recursive512", [&]()
+        //           { simd_fft_recursive512.eval(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
+
+        // bench.run("simd_fft_recursive1024", [&]()
+        //           { simd_fft_recursive1024.eval(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
+
+        // bench.run("simd_fft_iterative", [&]()
+        //           { simd_fft_iterative.eval(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
 
         std::cout << y_real[0] << pDst[0].re << std::endl;
 

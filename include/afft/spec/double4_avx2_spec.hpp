@@ -62,6 +62,44 @@ namespace afft
             operand in_c,
             operand in_d)
         {
+
+    //         // Lower halves
+    // __m128d a_lo = _mm256_castpd256_pd128(in_a);
+    // __m128d b_lo = _mm256_castpd256_pd128(in_b);
+    // __m128d c_lo = _mm256_castpd256_pd128(in_c);
+    // __m128d d_lo = _mm256_castpd256_pd128(in_d);
+
+    // // Upper halves
+    // __m128d a_hi = _mm256_extractf128_pd(in_a, 1);
+    // __m128d b_hi = _mm256_extractf128_pd(in_b, 1);
+    // __m128d c_hi = _mm256_extractf128_pd(in_c, 1);
+    // __m128d d_hi = _mm256_extractf128_pd(in_d, 1);
+
+    // // out_a = shuffle and insert lower lanes
+    // __m128d ab_lo = _mm_unpacklo_pd(a_lo, b_lo);
+    // __m256d abcd_lo = _mm256_insertf128_pd(_mm256_castpd128_pd256(ab_lo), c_lo, 1);
+    // __m256d abcd_lo2 = _mm256_insertf128_pd(_mm256_castpd128_pd256(ab_lo), d_lo, 1);
+    // out_a = _mm256_shuffle_pd(abcd_lo, abcd_lo2, 0b0010); // control = 0x2
+
+    // // out_b = blend upper half
+    // __m128d ab_hi = _mm_unpackhi_pd(a_lo, b_lo);
+    // __m256d c_perm = _mm256_permute4x64_pd(in_c, 0x55); // replicate lane 1
+    // __m256d tmp1 = _mm256_blend_pd(c_perm, _mm256_castpd128_pd256(ab_hi), 0b1100);
+    // __m256d ab_hi_insert = _mm256_insertf128_pd(_mm256_castpd128_pd256(ab_hi), d_lo, 1);
+    // out_b = _mm256_blend_pd(tmp1, ab_hi_insert, 0b1010);
+
+    // // out_c = interleave upper halves of A and B with broadcasted C and D
+    // __m128d ab2_lo = _mm_unpacklo_pd(a_hi, b_hi);
+    // __m256d ab2 = _mm256_castpd128_pd256(ab2_lo);
+    // ab2 = _mm256_blend_pd(ab2, in_c, 0b1100);
+    // __m256d d_broadcast = _mm256_broadcast_sd(&d_lo[0]);
+    // out_c = _mm256_blend_pd(ab2, d_broadcast, 0b1000);
+
+    // // out_d = upper hi interleave and shuffle
+    // __m128d ab2_hi = _mm_unpackhi_pd(a_hi, b_hi);
+    // __m256d c_shuffle = _mm256_shuffle_pd(in_c, in_c, 0b0100);
+    // __m256d blend1 = _mm256_blend_pd(_mm256_castpd128_pd256(ab2_hi), c_shuffle, 0b1100);
+    // out_d = _mm256_blend_pd(blend1, in_d, 0b1000);
             // Unpack lower and upper halves of the input vectors
             __m256d lo0 = _mm256_unpacklo_pd(in_a, in_b);
             __m256d hi0 = _mm256_unpackhi_pd(in_a, in_b);
