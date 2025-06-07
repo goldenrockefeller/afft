@@ -17,15 +17,12 @@ namespace afft
 
         ButterflyPlan<sample_spec, Allocator> plan_;
         mutable std::vector<sample, Allocator> buf_real_;
-        mutable std::vector<sample, Allocator> buf_imag_;        
-        mutable std::vector<sample, Allocator> buf_real_2_;
-        mutable std::vector<sample, Allocator> buf_imag_2_;
+        mutable std::vector<sample, Allocator> buf_imag_;       
 
 
     public:
-        explicit Butterfly(std::size_t n_samples) : plan_(n_samples, Spec::n_samples_per_operand), buf_real_(n_samples), buf_imag_(n_samples), buf_real_2_(n_samples), buf_imag_2_(n_samples) {}
-        Butterfly(std::size_t n_samples, std::size_t min_partition_len) : plan_(n_samples, Spec::n_samples_per_operand, min_partition_len), buf_real_(n_samples), buf_imag_(n_samples), buf_real_2_(n_samples), buf_imag_2_(n_samples) {}
-
+        explicit Butterfly(std::size_t n_samples) : plan_(n_samples, Spec::n_samples_per_operand, Spec::prefetch_lookahead, Spec::min_partition_len), buf_real_(n_samples), buf_imag_(n_samples){}
+        
         const ButterflyPlan<sample_spec, Allocator> &plan() const
         {
             return plan_;
@@ -39,8 +36,6 @@ namespace afft
             const typename Spec::sample *in_imag,
             sample *buf_real,
             sample *buf_imag,
-            sample *buf_real_2,
-            sample *buf_imag_2,
             const ButterflyPlan<sample_spec, Allocator> &plan)
         {
             switch (plan.log_n_samples_per_operand())
@@ -53,8 +48,6 @@ namespace afft
                     in_imag,
                     buf_real,
                     buf_imag,
-                    buf_real_2,
-                    buf_imag_2,
                     plan);
                 break;
             case 1:
@@ -65,8 +58,6 @@ namespace afft
                     in_imag,
                     buf_real,
                     buf_imag,
-                    buf_real_2,
-                    buf_imag_2,
                     plan);
                 break;
             case 2:
@@ -77,8 +68,6 @@ namespace afft
                     in_imag,
                     buf_real,
                     buf_imag,
-                    buf_real_2,
-                    buf_imag_2,
                     plan);
                 break;
             case 3:
@@ -89,8 +78,6 @@ namespace afft
                     in_imag,
                     buf_real,
                     buf_imag,
-                    buf_real_2,
-                    buf_imag_2,
                     plan);
                 break;
             case 4:
@@ -101,8 +88,6 @@ namespace afft
                     in_imag,
                     buf_real,
                     buf_imag,
-                    buf_real_2,
-                    buf_imag_2,
                     plan);
                 break;
             case 5:
@@ -113,8 +98,6 @@ namespace afft
                     in_imag,
                     buf_real,
                     buf_imag,
-                    buf_real_2,
-                    buf_imag_2,
                     plan);
                 break;
             case 6:
@@ -125,8 +108,6 @@ namespace afft
                     in_imag,
                     buf_real,
                     buf_imag,
-                    buf_real_2,
-                    buf_imag_2,
                     plan);
                 break;
             case 7:
@@ -137,8 +118,6 @@ namespace afft
                     in_imag,
                     buf_real,
                     buf_imag,
-                    buf_real_2,
-                    buf_imag_2,
                     plan);
                 break;
             case 8: // Maximum support number of samples per operand is 256!
@@ -149,8 +128,6 @@ namespace afft
                     in_imag,
                     buf_real,
                     buf_imag,
-                    buf_real_2,
-                    buf_imag_2,
                     plan);
                 break;
             }
@@ -170,8 +147,6 @@ namespace afft
                 in_imag,
                 buf_real_.data(),
                 buf_imag_.data(),
-                buf_real_2_.data(),
-                buf_imag_2_.data(),
                 plan_);
         }
     };

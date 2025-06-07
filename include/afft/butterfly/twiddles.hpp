@@ -5,10 +5,6 @@
 #include <vector>
 #include <cstddef>
 
-#include "afft/radix/radix_stage.hpp"
-#include "afft/radix/radix_type.hpp"
-#include "afft/butterfly/twiddles.hpp"
-
 namespace afft
 {
     namespace twiddles

@@ -15,6 +15,8 @@ namespace afft
         using operand = xsimd::batch<sample, arch>;
         using fallback_spec = StdSpec<sample>;
         static constexpr std::size_t n_samples_per_operand = 2;
+        static constexpr std::size_t prefetch_lookahead = 4;
+        static constexpr std::size_t min_partition_len = 256;
 
         static inline void load(operand &x, const sample *ptr)
         {
@@ -24,6 +26,14 @@ namespace afft
         static inline void store(sample *ptr, const operand &x)
         {
             x.store_unaligned(ptr);
+        }
+
+        static inline void prefetch(const sample *ptr){
+            _mm_prefetch(reinterpret_cast<const char*>(ptr), _MM_HINT_T0);
+        }
+
+        static inline void prefetch(const std::size_t *ptr){
+            _mm_prefetch(reinterpret_cast<const char*>(ptr), _MM_HINT_T0);
         }
 
         template <std::size_t LogInterleaveFactor>

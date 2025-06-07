@@ -24,8 +24,6 @@ namespace afft
         using operand = typename Spec::operand;
         constexpr std::size_t n_samples_per_operand = Spec::n_samples_per_operand;
 
-        
-
         // DECLARE
         operand alpha_real_a_op;
         operand alpha_real_b_op;

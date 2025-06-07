@@ -72,6 +72,64 @@ namespace afft
         auto n_samples_4 = n_samples / 4;
         auto n_samples_3_4 = 3 * n_samples / 4;
 
+        // for (
+        //     std::size_t subfft_id = subfft_id_start;
+        //     subfft_id < subfft_id_start + Spec::prefetch_lookahead;
+        //     subfft_id++)
+        // {
+        //     auto out_index = out_indexes[subfft_id];
+        //     auto in_index = in_indexes[subfft_id];
+
+        //     std::size_t in_a_offset = in_index * Spec::n_samples_per_operand;
+        //     std::size_t in_b_offset = in_index * Spec::n_samples_per_operand + n_samples_2;
+        //     std::size_t in_c_offset = in_index * Spec::n_samples_per_operand + n_samples_4;
+        //     std::size_t in_d_offset = in_index * Spec::n_samples_per_operand + n_samples_3_4;
+
+        //     std::size_t out_a_offset = out_index * box_size;
+        //     std::size_t out_b_offset = out_index * box_size + Spec::n_samples_per_operand;
+        //     std::size_t out_c_offset = out_index * box_size + 2 * Spec::n_samples_per_operand;
+        //     std::size_t out_d_offset = out_index * box_size + 3 * Spec::n_samples_per_operand;
+
+        //     auto in_real_a = in_real + in_a_offset;
+        //     auto in_imag_a = in_imag + in_a_offset;
+        //     auto in_real_b = in_real + in_b_offset;
+        //     auto in_imag_b = in_imag + in_b_offset;
+        //     auto in_real_c = in_real + in_c_offset;
+        //     auto in_imag_c = in_imag + in_c_offset;
+        //     auto in_real_d = in_real + in_d_offset;
+        //     auto in_imag_d = in_imag + in_d_offset;
+
+        //     auto out_real_a = out_real + out_a_offset;
+        //     auto out_imag_a = out_imag + out_a_offset;
+        //     auto out_real_b = out_real + out_b_offset;
+        //     auto out_imag_b = out_imag + out_b_offset;
+        //     auto out_real_c = out_real + out_c_offset;
+        //     auto out_imag_c = out_imag + out_c_offset;
+        //     auto out_real_d = out_real + out_d_offset;
+        //     auto out_imag_d = out_imag + out_d_offset;
+
+        //     Spec::prefetch(in_real_a);
+        //     Spec::prefetch(in_imag_a);
+        //     Spec::prefetch(in_real_b);
+        //     Spec::prefetch(in_imag_b);
+        //     Spec::prefetch(in_real_c);
+        //     Spec::prefetch(in_imag_c);
+        //     Spec::prefetch(in_real_d);
+        //     Spec::prefetch(in_imag_d);
+
+        //     Spec::prefetch(out_real_a);
+        //     Spec::prefetch(out_imag_a);
+        //     Spec::prefetch(out_real_b);
+        //     Spec::prefetch(out_imag_b);
+        //     Spec::prefetch(out_real_c);
+        //     Spec::prefetch(out_imag_c);
+        //     Spec::prefetch(out_real_d);
+        //     Spec::prefetch(out_imag_d);
+
+        //     Spec::prefetch(out_indexes + subfft_id + Spec::prefetch_lookahead);
+        //     Spec::prefetch(in_indexes + subfft_id + Spec::prefetch_lookahead);
+        // }
+
         for (
             std::size_t subfft_id = subfft_id_start;
             subfft_id < subfft_id_end;
@@ -91,6 +149,7 @@ namespace afft
             std::size_t out_b_offset = out_index * box_size + Spec::n_samples_per_operand;
             std::size_t out_c_offset = out_index * box_size + 2 * Spec::n_samples_per_operand;
             std::size_t out_d_offset = out_index * box_size + 3 * Spec::n_samples_per_operand;
+            
 
             auto in_real_a = in_real + in_a_offset;
             auto in_imag_a = in_imag + in_a_offset;
@@ -188,6 +247,59 @@ namespace afft
             Spec::store(out_imag_c, alpha_imag_c_op);
             Spec::store(out_real_d, alpha_real_d_op);
             Spec::store(out_imag_d, alpha_imag_d_op);
+
+            // PREFETCH
+            out_index = out_indexes[subfft_id + Spec::prefetch_lookahead];
+            in_index = in_indexes[subfft_id + Spec::prefetch_lookahead];
+
+            in_a_offset = in_index * Spec::n_samples_per_operand;
+            in_b_offset = in_index * Spec::n_samples_per_operand + n_samples_2;
+            in_c_offset = in_index * Spec::n_samples_per_operand + n_samples_4;
+            in_d_offset = in_index * Spec::n_samples_per_operand + n_samples_3_4;
+
+            out_a_offset = out_index * box_size;
+            out_b_offset = out_index * box_size + Spec::n_samples_per_operand;
+            out_c_offset = out_index * box_size + 2 * Spec::n_samples_per_operand;
+            out_d_offset = out_index * box_size + 3 * Spec::n_samples_per_operand;
+
+            in_real_a = in_real + in_a_offset;
+            in_imag_a = in_imag + in_a_offset;
+            in_real_b = in_real + in_b_offset;
+            in_imag_b = in_imag + in_b_offset;
+            in_real_c = in_real + in_c_offset;
+            in_imag_c = in_imag + in_c_offset;
+            in_real_d = in_real + in_d_offset;
+            in_imag_d = in_imag + in_d_offset;
+
+            out_real_a = out_real + out_a_offset;
+            out_imag_a = out_imag + out_a_offset;
+            out_real_b = out_real + out_b_offset;
+            out_imag_b = out_imag + out_b_offset;
+            out_real_c = out_real + out_c_offset;
+            out_imag_c = out_imag + out_c_offset;
+            out_real_d = out_real + out_d_offset;
+            out_imag_d = out_imag + out_d_offset;
+
+            Spec::prefetch(in_real_a);
+            Spec::prefetch(in_imag_a);
+            Spec::prefetch(in_real_b);
+            Spec::prefetch(in_imag_b);
+            Spec::prefetch(in_real_c);
+            Spec::prefetch(in_imag_c);
+            Spec::prefetch(in_real_d);
+            Spec::prefetch(in_imag_d);
+
+            Spec::prefetch(out_real_a);
+            Spec::prefetch(out_imag_a);
+            Spec::prefetch(out_real_b);
+            Spec::prefetch(out_imag_b);
+            Spec::prefetch(out_real_c);
+            Spec::prefetch(out_imag_c);
+            Spec::prefetch(out_real_d);
+            Spec::prefetch(out_imag_d);
+
+            Spec::prefetch(out_indexes + subfft_id + 2 * Spec::prefetch_lookahead);
+            Spec::prefetch(in_indexes + subfft_id +  2 * Spec::prefetch_lookahead);
 
         }
     }

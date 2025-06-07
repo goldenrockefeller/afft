@@ -54,6 +54,8 @@ namespace afft
         using sample = double;
         using operand = ValArrayOperand<Size>;
         static constexpr std::size_t n_samples_per_operand = Size;
+        static constexpr std::size_t prefetch_lookahead = 4;
+        static constexpr std::size_t min_partition_len = 256;
 
         static inline void load(operand &x, const sample *ptr)
         {
@@ -69,6 +71,14 @@ namespace afft
             {
                 *(ptr + i) = x[i];
             }
+        }
+
+        static inline void prefetch(const sample *ptr){
+            // Do Nothing
+        }
+
+        static inline void prefetch(const std::size_t *ptr){
+            _mm_prefetch(reinterpret_cast<const char*>(ptr), _MM_HINT_T0);
         }
 
         template <std::size_t LogInterleaveFactor>

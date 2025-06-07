@@ -13,6 +13,8 @@ namespace afft
         using sample = Sample;
         using operand = Sample;
         static constexpr std::size_t n_samples_per_operand = 1;
+        static constexpr std::size_t prefetch_lookahead = 4;
+        static constexpr std::size_t min_partition_len = 256;
 
         static inline void load(operand &x, const sample *ptr)
         {
@@ -24,6 +26,14 @@ namespace afft
             *ptr = x;
         }
 
+        static inline void prefetch(const sample *ptr){
+            // Do Nothing
+        }
+
+        static inline void prefetch(const std::size_t *ptr){
+            _mm_prefetch(reinterpret_cast<const char*>(ptr), _MM_HINT_T0);
+        }
+
         static inline sample sin(const sample &x) {
             return std::sin(x);
         }
@@ -31,7 +41,7 @@ namespace afft
         static inline sample cos(const sample &x) {
             return std::cos(x);
         }
-
+        
         static inline sample pi() {
             return sample(3.14159265358979323846L);
         }

@@ -32,13 +32,14 @@ target_link_libraries(
  
 # target_compile_options(afft-run PUBLIC /W2 /O2 /Oi /arch:AVX2 /fp:fast /EHsc /permissive-)
 target_compile_options(afft-run PUBLIC
+   -O3
    -ffast-math 
    -msse4.1
    -mavx 
    -mavx2 
    -mfma 
-   -funroll-loops # --param max-unroll-times=8
-   -march=native
+   # -funroll-loops # --param max-unroll-times=8
+   # -march=native
    )
 target_include_directories( 
       afft-run 

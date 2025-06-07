@@ -14,7 +14,6 @@ namespace afft
 
     public:
         explicit FftComplex(std::size_t n_samples) : butterfly_(n_samples) {}
-        explicit FftComplex(std::size_t n_samples, std::size_t min_partition_len) : butterfly_(n_samples, min_partition_len) {}
 
         const Butterfly<Spec, Allocator> &butterfly() const
         {
@@ -28,7 +27,7 @@ namespace afft
             const typename Spec::sample *in_real,
             const typename Spec::sample *in_imag)
         {
-            butterfly_.template eval<Rescaling>(out_real, out_imag, out_real, out_imag);
+            butterfly_.template eval<Rescaling>(out_real, out_imag, in_real, in_imag);
         }
     };
 }

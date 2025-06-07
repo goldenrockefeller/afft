@@ -94,6 +94,31 @@ namespace afft
         auto out_real_d = out_real + out_d_offset;
         auto out_imag_d = out_imag + out_d_offset;
 
+        // for (
+        //     std::size_t subfft_id = subfft_id_start;
+        //     subfft_id < subfft_id_start + Spec::prefetch_lookahead;
+        //     subfft_id++)
+        // {
+        //     // PREFETCH
+        //     Spec::prefetch(in_real_a + subfft_id * Spec::n_samples_per_operand);
+        //     Spec::prefetch(in_imag_a + subfft_id * Spec::n_samples_per_operand);
+        //     Spec::prefetch(in_real_b + subfft_id * Spec::n_samples_per_operand);
+        //     Spec::prefetch(in_imag_b + subfft_id * Spec::n_samples_per_operand);
+        //     Spec::prefetch(in_real_c + subfft_id * Spec::n_samples_per_operand);
+        //     Spec::prefetch(in_imag_c + subfft_id * Spec::n_samples_per_operand);
+        //     Spec::prefetch(in_real_d + subfft_id * Spec::n_samples_per_operand);
+        //     Spec::prefetch(in_imag_d + subfft_id * Spec::n_samples_per_operand);
+
+        //     Spec::prefetch(out_real_a + subfft_id * box_size);
+        //     Spec::prefetch(out_imag_a + subfft_id * box_size);
+        //     Spec::prefetch(out_real_b + subfft_id * box_size);
+        //     Spec::prefetch(out_imag_b + subfft_id * box_size);
+        //     Spec::prefetch(out_real_c + subfft_id * box_size);
+        //     Spec::prefetch(out_imag_c + subfft_id * box_size);
+        //     Spec::prefetch(out_real_d + subfft_id * box_size);
+        //     Spec::prefetch(out_imag_d + subfft_id * box_size);
+        // }
+
         for (
             std::size_t subfft_id = subfft_id_start;
             subfft_id < subfft_id_end;
@@ -220,6 +245,25 @@ namespace afft
             out_imag_c += box_size;
             out_real_d += box_size;
             out_imag_d += box_size;
+
+            // PREFETCH
+            Spec::prefetch(in_real_a + Spec::prefetch_lookahead * Spec::n_samples_per_operand);
+            Spec::prefetch(in_imag_a + Spec::prefetch_lookahead * Spec::n_samples_per_operand);
+            Spec::prefetch(in_real_b + Spec::prefetch_lookahead * Spec::n_samples_per_operand);
+            Spec::prefetch(in_imag_b + Spec::prefetch_lookahead * Spec::n_samples_per_operand);
+            Spec::prefetch(in_real_c + Spec::prefetch_lookahead * Spec::n_samples_per_operand);
+            Spec::prefetch(in_imag_c + Spec::prefetch_lookahead * Spec::n_samples_per_operand);
+            Spec::prefetch(in_real_d + Spec::prefetch_lookahead * Spec::n_samples_per_operand);
+            Spec::prefetch(in_imag_d + Spec::prefetch_lookahead * Spec::n_samples_per_operand);
+
+            Spec::prefetch(out_real_a + Spec::prefetch_lookahead * box_size);
+            Spec::prefetch(out_imag_a + Spec::prefetch_lookahead * box_size);
+            Spec::prefetch(out_real_b + Spec::prefetch_lookahead * box_size);
+            Spec::prefetch(out_imag_b + Spec::prefetch_lookahead * box_size);
+            Spec::prefetch(out_real_c + Spec::prefetch_lookahead * box_size);
+            Spec::prefetch(out_imag_c + Spec::prefetch_lookahead * box_size);
+            Spec::prefetch(out_real_d + Spec::prefetch_lookahead * box_size);
+            Spec::prefetch(out_imag_d + Spec::prefetch_lookahead * box_size);
         }
     }
 }
