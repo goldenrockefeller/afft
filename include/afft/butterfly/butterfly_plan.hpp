@@ -312,6 +312,7 @@ namespace afft
                     params.subtwiddle_len = subtwiddle_len;
                     params.subtwiddle_start = 0;
                     params.subtwiddle_end = subtwiddle_len;
+                    params.stride = 1;
 
                     radix_stages_.push_back(radix_stage_);
                     subtwiddle_len *= 2;
@@ -339,6 +340,7 @@ namespace afft
                     params.subtwiddle_len = subtwiddle_len;
                     params.subtwiddle_start = 0;
                     params.subtwiddle_end = subtwiddle_len;
+                    params.stride = 1;
 
                     radix_stages_.push_back(radix_stage_);
                     subtwiddle_len *= 4;
@@ -350,18 +352,22 @@ namespace afft
         ButterflyPlan(std::size_t n_samples, std::size_t max_n_samples_per_operand, std::size_t prefetch_lookahead, std::size_t min_partition_len)
             : ButterflyPlan(n_samples, max_n_samples_per_operand, prefetch_lookahead)
         {
-            // This version of the constructor turns an iterative butterfly plan into a hybrid/recursive plan
-            std::vector<std::size_t> open_radix_stage_ids;
-            std::vector<std::size_t> open_radix_stage_partition_counts;
-            std::vector<std::size_t> open_radix_stage_partition_ids;
+            // This version of the constructor turns an iterative butterfly plan into a split-and-repeat plan
+            
+            namespace cm = afft::common_math;
+            std::size_t n_samples_per_operand = 1 << log_n_samples_per_operand_;
+            std::size_t log_n_samples = cm::int_log_2(n_samples);
+            std::size_t approx_sqrt_n_samples = 1 << ((log_n_samples / 2) + (log_n_samples % 2));
 
-            if (4 * max_n_samples_per_operand < min_partition_len) {
+            if (n_samples < min_partition_len) {
                 return;
             }
-
+            
             auto initial_radix_stages = radix_stages_;
             radix_stages_.clear();
-            auto reversed_radix_stages_ = radix_stages_;
+
+            std::vector<RadixStage<Spec>> long_cut_stages;
+            std::vector<RadixStage<Spec>> short_cut_stages;
 
             // Add the Stockham stages back in 
             for (std::size_t stage_id = 0; stage_id < n_s_radix_stages_; stage_id++) {
@@ -372,83 +378,70 @@ namespace afft
                 return;
             }
 
-            open_radix_stage_ids.push_back(initial_radix_stages.size() - 1);
-            open_radix_stage_partition_counts.push_back(1);
-            open_radix_stage_partition_ids.push_back(0);
-
-
-            while (open_radix_stage_ids.size() > 0)
-            {
-                auto radix_stage_id = open_radix_stage_ids.back();
-                open_radix_stage_ids.pop_back();
-
-                auto radix_stage_partition_count = open_radix_stage_partition_counts.back();
-                open_radix_stage_partition_counts.pop_back();
-
-                auto radix_stage_partition_id = open_radix_stage_partition_ids.back();
-                open_radix_stage_partition_ids.pop_back();
-
-                std::size_t sub_stage_partition_count;
-                auto radix_stage = initial_radix_stages[radix_stage_id];
-
-                auto radix_stage_partition = radix_stage;
-
-                if (initial_radix_stages[radix_stage_id].type == RadixType::s_radix4) {
-                    continue; // Don't partition Stockham Stages
+            // Determine long_cut_stages;
+            std::size_t last_long_cut_stage_id;
+            
+            for (std::size_t stage_id = n_s_radix_stages_; stage_id < initial_radix_stages.size(); stage_id ++) {
+                auto radix_stage = initial_radix_stages[stage_id];
+                auto subfft_len = 4 * radix_stage.params.ct_r4.subtwiddle_len;
+                last_long_cut_stage_id = stage_id;
+                if (subfft_len <= approx_sqrt_n_samples) {
+                    long_cut_stages.push_back(radix_stage);
                 }
-
-                if (initial_radix_stages[radix_stage_id].type == RadixType::s_radix2) {
-                    continue; // Don't partition Stockham Stages
-                }
-
-                if (radix_stage.type == RadixType::ct_radix4)
-                {
-                    sub_stage_partition_count = 4;
-                    radix_stage_partition.params.ct_r4.subfft_id_start = radix_stage.params.ct_r4.subfft_id_end * radix_stage_partition_id / radix_stage_partition_count;
-                    radix_stage_partition.params.ct_r4.subfft_id_end = radix_stage.params.ct_r4.subfft_id_end * (radix_stage_partition_id + 1) / radix_stage_partition_count;
-                }
-                else if (radix_stage.type == RadixType::ct_radix2) {
-                    sub_stage_partition_count = 2;
-                }
-
-                reversed_radix_stages_.push_back(radix_stage_partition);
-
-                if (n_samples / sub_stage_partition_count / radix_stage_partition_count > min_partition_len)
-                {
-                    for (std::size_t i = 0; i < sub_stage_partition_count; i++)
-                    {
-                        open_radix_stage_ids.push_back(radix_stage_id - 1);
-                        open_radix_stage_partition_counts.push_back(radix_stage_partition_count * sub_stage_partition_count);
-                        open_radix_stage_partition_ids.push_back(sub_stage_partition_count * radix_stage_partition_id + i);
-                    }
-                }
-
-                else
-                {
-                    for (; radix_stage_id-- > 0;)
-                    {
-                        if (initial_radix_stages[radix_stage_id].type == RadixType::s_radix4) {
-                            break; // Don't re-add Stockham Stages
-                        }
-
-                        if (initial_radix_stages[radix_stage_id].type == RadixType::s_radix2) {
-                            break; // Don't re-add Stockham Stages
-                        }
-
-                        radix_stage = initial_radix_stages[radix_stage_id];
-                        radix_stage_partition = radix_stage;
-                        radix_stage_partition.params.ct_r4.subfft_id_start = radix_stage.params.ct_r4.subfft_id_end * radix_stage_partition_id / radix_stage_partition_count;
-                        radix_stage_partition.params.ct_r4.subfft_id_end = radix_stage.params.ct_r4.subfft_id_end * (radix_stage_partition_id + 1) / radix_stage_partition_count;
-                        reversed_radix_stages_.push_back(radix_stage_partition);
-                    }
+                else {
+                    break;
                 }
             }
 
-            radix_stages_.insert(
-                radix_stages_.end(),
-                reversed_radix_stages_.rbegin(),
-                reversed_radix_stages_.rend()
-            );
+            if (long_cut_stages.empty()) {
+                radix_stages_ = initial_radix_stages;
+                return;
+            }
+
+            // Determine short_cut_stages;
+            for (std::size_t stage_id = last_long_cut_stage_id; stage_id < initial_radix_stages.size(); stage_id ++) {
+                short_cut_stages.push_back(initial_radix_stages[stage_id]);
+            }
+            
+            // Determine how many long cuts to make
+            auto last_long_cut_stage = long_cut_stages.back();
+            auto n_long_cuts = long_cut_stages.back().params.ct_r4.subfft_id_end;
+            
+            // Long Cut & Repeat
+            for (std::size_t cut_id = 0; cut_id < n_long_cuts; cut_id++) {
+                for (auto radix_stage : long_cut_stages) {
+                    auto &params = radix_stage.params.ct_r4;
+                    auto n_subffts = params.subfft_id_end;
+                    auto n_subffts_per_cut = n_subffts / n_long_cuts;
+                    params.subfft_id_start = cut_id * n_subffts_per_cut;
+                    params.subfft_id_end = params.subfft_id_start + n_subffts_per_cut;
+                    radix_stages_.push_back(radix_stage);
+                }
+            }  
+            
+            // Determine number of short cuts
+            if (short_cut_stages[0].type == RadixType::ct_radix2) {
+                radix_stages_.push_back(short_cut_stages[0]);
+                return;
+            }
+
+            auto n_short_cuts = short_cut_stages[0].params.ct_r4.subtwiddle_len / n_samples_per_operand;
+            for (std::size_t cut_id = 0; cut_id < n_short_cuts; cut_id++) {
+                for (auto radix_stage : short_cut_stages) {
+                    if (radix_stage.type == RadixType::ct_radix2) {
+                        auto &params = radix_stage.params.ct_r2;
+                        params.subtwiddle_start = cut_id * n_samples_per_operand;
+                        params.stride = n_short_cuts;
+                        radix_stages_.push_back(radix_stage);
+                    }
+                    if (radix_stage.type == RadixType::ct_radix4) {
+                        auto &params = radix_stage.params.ct_r4;
+                        params.subtwiddle_start = cut_id * n_samples_per_operand;
+                        params.stride = n_short_cuts;
+                        radix_stages_.push_back(radix_stage);
+                    }
+                }
+            }
         }
     };
 }

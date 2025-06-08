@@ -54,7 +54,7 @@ namespace afft
         using sample = double;
         using operand = ValArrayOperand<Size>;
         static constexpr std::size_t n_samples_per_operand = Size;
-        static constexpr std::size_t prefetch_lookahead = 4;
+        static constexpr std::size_t prefetch_lookahead = 16;
         static constexpr std::size_t min_partition_len = 256;
 
         static inline void load(operand &x, const sample *ptr)

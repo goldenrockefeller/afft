@@ -14,7 +14,8 @@ namespace afft{
         const typename Spec::sample* tw_imag_b_0, 
         std::size_t subtwiddle_len,
         std::size_t subtwiddle_start,
-        std::size_t subtwiddle_end
+        std::size_t subtwiddle_end,
+        std::size_t stride = 1
     ) {
         using operand = typename Spec::operand;
         constexpr std::size_t n_samples_per_operand = Spec::n_samples_per_operand;
@@ -47,11 +48,27 @@ namespace afft{
         auto tw_real_b = tw_real_b_0 + subtwiddle_start;
         auto tw_imag_b = tw_imag_b_0 + subtwiddle_start;
 
+        
+        const std::size_t data_stride = n_samples_per_operand * stride;
+
         for (
             std::size_t i = subtwiddle_start; 
             i < subtwiddle_end;
-            i += n_samples_per_operand
+            i += data_stride
         ) {
+            // PREFETCH
+            Spec::prefetch(in_real_a + Spec::prefetch_lookahead * data_stride);
+            Spec::prefetch(in_imag_a + Spec::prefetch_lookahead * data_stride);
+            Spec::prefetch(in_real_b + Spec::prefetch_lookahead * data_stride);
+            Spec::prefetch(in_imag_b + Spec::prefetch_lookahead * data_stride);
+
+            Spec::prefetch(out_real_a + Spec::prefetch_lookahead * data_stride);
+            Spec::prefetch(out_imag_a + Spec::prefetch_lookahead * data_stride);
+            Spec::prefetch(out_real_b + Spec::prefetch_lookahead * data_stride);
+            Spec::prefetch(out_imag_b + Spec::prefetch_lookahead * data_stride);
+
+            Spec::prefetch(tw_real_b + Spec::prefetch_lookahead * data_stride);
+            Spec::prefetch(tw_imag_b + Spec::prefetch_lookahead * data_stride);
             
             //LOAD
             Spec::load(alpha_real_a_op, in_real_a);
@@ -84,16 +101,16 @@ namespace afft{
             Spec::store(out_imag_b, beta_imag_b_op);
 
             // UPDATE OFFSET
-            in_real_a += n_samples_per_operand;
-            in_imag_a += n_samples_per_operand;
-            in_real_b += n_samples_per_operand;
-            in_imag_b += n_samples_per_operand;
-            out_real_a += n_samples_per_operand;
-            out_imag_a += n_samples_per_operand;
-            out_real_b += n_samples_per_operand;
-            out_imag_b += n_samples_per_operand;
-            tw_real_b += n_samples_per_operand;
-            tw_imag_b += n_samples_per_operand;
+            in_real_a += data_stride;
+            in_imag_a += data_stride;
+            in_real_b += data_stride;
+            in_imag_b += data_stride;
+            out_real_a += data_stride;
+            out_imag_a += data_stride;
+            out_real_b += data_stride;
+            out_imag_b += data_stride;
+            tw_real_b += data_stride;
+            tw_imag_b += data_stride;
         }
     }
 }

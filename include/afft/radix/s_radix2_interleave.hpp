@@ -61,6 +61,8 @@ namespace afft
         auto out_real_b = out_real + out_b_offset;
         auto out_imag_b = out_imag + out_b_offset;
 
+        
+
 
         for (
             std::size_t subfft_id = subfft_id_start;
@@ -72,6 +74,17 @@ namespace afft
             Spec::load(alpha_imag_a_op, in_imag_a);
             Spec::load(alpha_real_b_op, in_real_b);
             Spec::load(alpha_imag_b_op, in_imag_b);
+
+            // PREFETCH
+            Spec::prefetch(in_real_a + Spec::prefetch_lookahead * Spec::n_samples_per_operand);
+            Spec::prefetch(in_imag_a + Spec::prefetch_lookahead * Spec::n_samples_per_operand);
+            Spec::prefetch(in_real_b + Spec::prefetch_lookahead * Spec::n_samples_per_operand);
+            Spec::prefetch(in_imag_b + Spec::prefetch_lookahead * Spec::n_samples_per_operand);
+
+            Spec::prefetch(out_real_a + Spec::prefetch_lookahead * box_size);
+            Spec::prefetch(out_imag_a + Spec::prefetch_lookahead * box_size);
+            Spec::prefetch(out_real_b + Spec::prefetch_lookahead * box_size);
+            Spec::prefetch(out_imag_b + Spec::prefetch_lookahead * box_size);
             
 
             // COMPUTE

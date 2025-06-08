@@ -150,7 +150,8 @@ namespace afft
                             params.subfft_id_end,
                             params.subtwiddle_len,
                             params.subtwiddle_start,
-                            params.subtwiddle_end);
+                            params.subtwiddle_end,
+                            params.stride);
                     }
                     break;
                 case RadixType::s_radix4:
@@ -188,7 +189,8 @@ namespace afft
                             params.tw_imag_b_0,
                             params.subtwiddle_len,
                             params.subtwiddle_start,
-                            params.subtwiddle_end);
+                            params.subtwiddle_end,
+                            params.stride);
                     }
                     break;
                 case RadixType::s_radix2:

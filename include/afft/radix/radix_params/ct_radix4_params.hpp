@@ -17,6 +17,7 @@ namespace afft{
         std::size_t subtwiddle_len;
         std::size_t subtwiddle_start;
         std::size_t subtwiddle_end;
+        std::size_t stride;
     };
 }
 #endif
