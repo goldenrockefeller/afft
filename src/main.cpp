@@ -409,6 +409,7 @@ void do_bench()
         ostringstream title_stream;
         title_stream << "n_samples: " << n_samples;
         bench.title(title_stream.str());
+        bench.relative(true);
 
         const int order = int_log_2(n_samples);
         // Spec and working buffers

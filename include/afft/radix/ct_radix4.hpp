@@ -94,34 +94,7 @@ namespace afft{
                 std::size_t i = subtwiddle_start; 
                 i < subtwiddle_end;
                 i += data_stride
-            ) {
-                // PREFETCH
-                Spec::prefetch(in_real_a + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(in_imag_a + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(in_real_b + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(in_imag_b + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(in_real_c + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(in_imag_c + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(in_real_d + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(in_imag_d + Spec::prefetch_lookahead * data_stride);
-
-                Spec::prefetch(out_real_a + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(out_imag_a + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(out_real_b + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(out_imag_b + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(out_real_c + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(out_imag_c + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(out_real_d + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(out_imag_d + Spec::prefetch_lookahead * data_stride);
-
-                Spec::prefetch(tw_real_b + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(tw_imag_b + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(tw_real_c + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(tw_imag_c + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(tw_real_d + Spec::prefetch_lookahead * data_stride);
-                Spec::prefetch(tw_imag_d + Spec::prefetch_lookahead * data_stride);
-
-                
+            ) {                
                 //LOAD
                 Spec::load(alpha_real_a_op, in_real_a);
                 Spec::load(alpha_imag_a_op, in_imag_a);
