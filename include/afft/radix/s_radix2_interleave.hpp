@@ -11,8 +11,7 @@ namespace afft
         typename Spec::sample *out_imag,
         const typename Spec::sample *in_real,
         const typename Spec::sample *in_imag,
-        const typename Spec::sample *tw_real_b_0,
-        const typename Spec::sample *tw_imag_b_0,
+        const typename Spec::sample *twiddles,
         std::size_t subfft_id_start,
         std::size_t subfft_id_end,
         std::size_t n_samples,
@@ -39,8 +38,8 @@ namespace afft
 
         if (HasTwiddles)
         {
-            Spec::load(tw_real_b_op, tw_real_b_0);
-            Spec::load(tw_imag_b_op, tw_imag_b_0);
+            Spec::load(tw_real_b_op, twiddles);
+            Spec::load(tw_imag_b_op, twiddles + n_samples_per_operand);
         }
 
         auto box_size = Spec::n_samples_per_operand * 2;

@@ -10,12 +10,11 @@ namespace afft{
         typename Spec::sample* out_imag,
         const typename Spec::sample* in_real, 
         const typename Spec::sample* in_imag, 
-        const typename Spec::sample* tw_real_b_0, 
-        const typename Spec::sample* tw_imag_b_0, 
+        const typename Spec::sample* twiddles,
         std::size_t subtwiddle_len,
         std::size_t subtwiddle_start,
         std::size_t subtwiddle_end,
-        std::size_t stride = 1
+        std::ptrdiff_t output_offset = 0
     ) {
         using operand = typename Spec::operand;
         constexpr std::size_t n_samples_per_operand = Spec::n_samples_per_operand;
@@ -45,11 +44,11 @@ namespace afft{
         auto out_imag_a = out_imag + a_offset;
         auto out_real_b = out_real + b_offset;
         auto out_imag_b = out_imag + b_offset;
-        auto tw_real_b = tw_real_b_0 + subtwiddle_start;
-        auto tw_imag_b = tw_imag_b_0 + subtwiddle_start;
+        auto tw_real_b = twiddles + 2 * subtwiddle_start;
+        auto tw_imag_b = tw_real_b + n_samples_per_operand;
 
-        
-        const std::size_t data_stride = n_samples_per_operand * stride;
+        const std::size_t data_stride = n_samples_per_operand;
+        const std::size_t twiddle_stride = 2*n_samples_per_operand;
 
         for (
             std::size_t i = subtwiddle_start; 
@@ -96,8 +95,8 @@ namespace afft{
             out_imag_a += data_stride;
             out_real_b += data_stride;
             out_imag_b += data_stride;
-            tw_real_b += data_stride;
-            tw_imag_b += data_stride;
+            tw_real_b += twiddle_stride;
+            tw_imag_b += twiddle_stride;
         }
     }
 }

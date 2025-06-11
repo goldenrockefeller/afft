@@ -6,12 +6,7 @@
 namespace afft{
     template <typename Spec>
     struct SRadix4Params {
-        typename Spec::sample *tw_real_b_0;
-        typename Spec::sample *tw_imag_b_0;
-        typename Spec::sample *tw_real_c_0;
-        typename Spec::sample *tw_imag_c_0;
-        typename Spec::sample *tw_real_d_0;
-        typename Spec::sample *tw_imag_d_0;
+        typename Spec::sample *twiddles;
         std::size_t *out_indexes;
         std::size_t *in_indexes;
         std::size_t subfft_id_start;

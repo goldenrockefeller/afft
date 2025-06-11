@@ -9,6 +9,7 @@
 #include "afft/radix/radix_stage/radix_stage.hpp"
 #include "afft/radix/radix_stage/radix_type.hpp"
 #include "afft/butterfly/twiddles.hpp"
+#include "afft/butterfly/butterfly_partitioning.hpp"
 #include "afft/bit_reverse_permutation/plan_indexes_manipulation.hpp"
 
 namespace afft
@@ -22,8 +23,7 @@ namespace afft
         std::size_t n_s_radix_stages_;
         std::size_t n_samples_;
         std::vector<RadixStage<Spec>> radix_stages_;
-        std::vector<std::vector<std::vector<typename Spec::sample, Allocator>>> twiddles_real_;
-        std::vector<std::vector<std::vector<typename Spec::sample, Allocator>>> twiddles_imag_;
+        std::vector<typename Spec::sample, Allocator> twiddles_;
         std::vector<std::size_t> out_indexes;
         std::vector<std::size_t> in_indexes;
         std::vector<std::size_t> inout_indexes;
@@ -51,18 +51,6 @@ namespace afft
             return radix_stages_;
         }
 
-        // Getter for twiddles_real_
-        const std::vector<std::vector<std::vector<typename Spec::sample, Allocator>>> &twiddles_real() const
-        {
-            return twiddles_real_;
-        }
-
-        // Getter for twiddles_imag_
-        const std::vector<std::vector<std::vector<typename Spec::sample, Allocator>>> &twiddles_imag() const
-        {
-            return twiddles_imag_;
-        }
-
         const typename Spec::sample &scaling_factor() const
         {
             return scaling_factor_;
@@ -78,6 +66,8 @@ namespace afft
             scaling_factor_ = sample(1) / sample(n_samples);
             n_s_radix_stages_ = 0;
 
+            
+
             if (n_samples <= 1)
             {
                 return;
@@ -89,6 +79,9 @@ namespace afft
                     std::size_t(cm::int_log_2(n_samples / 2)));
 
             std::size_t n_samples_per_operand = 1 << log_n_samples_per_operand_;
+
+            twiddles_.reserve(2 * n_samples + 2 * n_samples_per_operand * 6 * (n_samples_per_operand + 1));
+            std::size_t tw_pos = 0;
 
             std::size_t indexes_len;
             if (n_samples == 2 * n_samples_per_operand) {
@@ -123,16 +116,12 @@ namespace afft
                 // Stockham x2 Interleave
 
                 while (subtwiddle_len < n_samples_per_operand) {
-                    auto stage_twiddles_real = tw::s_radix2_twiddles_real<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
-                    auto stage_twiddles_imag = tw::s_radix2_twiddles_imag<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
-                    twiddles_real_.push_back(stage_twiddles_real);
-                    twiddles_imag_.push_back(stage_twiddles_imag);
+                    auto stage_twiddles = tw::s_radix2_twiddles<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
 
                     RadixStage<Spec> radix_stage_;
                     radix_stage_.type = RadixType::s_radix2;
                     auto &params = radix_stage_.params.s_r2;
-                    params.tw_real_b_0 = twiddles_real_.back()[0].data();
-                    params.tw_imag_b_0 = twiddles_imag_.back()[0].data();
+                    params.twiddles = twiddles_.data() + tw_pos;
                     params.out_indexes = inout_indexes.data();
                     params.in_indexes = inout_indexes.data();
                     params.subfft_id_start = 0;
@@ -140,6 +129,11 @@ namespace afft
                     params.log_subtwiddle_len = log_subtwiddle_len;
                     params.input_id = input_id;
                     params.output_id = output_id;
+
+                    for (auto twiddle : stage_twiddles) {
+                        twiddles_.push_back(twiddle);
+                        tw_pos++;
+                    }
 
                     input_id = output_id;
                     output_id++;
@@ -154,17 +148,12 @@ namespace afft
 
                 }
                 // Stockham x2 Permute
-                auto stage_twiddles_real = tw::s_radix2_twiddles_real<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
-                auto stage_twiddles_imag = tw::s_radix2_twiddles_imag<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
-                twiddles_real_.push_back(stage_twiddles_real);
-                twiddles_imag_.push_back(stage_twiddles_imag);
-
+                auto stage_twiddles = tw::s_radix2_twiddles<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
 
                 RadixStage<Spec> radix_stage_;
                 radix_stage_.type = RadixType::s_radix2;
                 auto &params = radix_stage_.params.s_r2;
-                params.tw_real_b_0 = twiddles_real_.back()[0].data();
-                params.tw_imag_b_0 = twiddles_imag_.back()[0].data();
+                params.twiddles = twiddles_.data() + tw_pos;
                 params.out_indexes = out_indexes.data();
                 params.in_indexes = in_indexes.data();
                 params.subfft_id_start = 0;
@@ -172,6 +161,11 @@ namespace afft
                 params.log_subtwiddle_len = log_subtwiddle_len;
                 params.input_id = input_id;
                 params.output_id = output_id;
+
+                for (auto twiddle : stage_twiddles) {
+                    twiddles_.push_back(twiddle);
+                    tw_pos++;
+                }
 
                 input_id = output_id;
                 output_id++;
@@ -190,20 +184,12 @@ namespace afft
 
             // Stockham x4 Interleave
             while (subtwiddle_len * 4 <= n_samples_per_operand) {
-                auto stage_twiddles_real = tw::s_radix4_twiddles_real<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
-                auto stage_twiddles_imag = tw::s_radix4_twiddles_imag<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
-                twiddles_real_.push_back(stage_twiddles_real);
-                twiddles_imag_.push_back(stage_twiddles_imag);
+                auto stage_twiddles = tw::s_radix4_twiddles<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
 
                 RadixStage<Spec> radix_stage_;
                 radix_stage_.type = RadixType::s_radix4;
                 auto &params = radix_stage_.params.s_r4;
-                params.tw_real_b_0 = twiddles_real_.back()[0].data();
-                params.tw_imag_b_0 = twiddles_imag_.back()[0].data();
-                params.tw_real_c_0 = twiddles_real_.back()[1].data();
-                params.tw_imag_c_0 = twiddles_imag_.back()[1].data();
-                params.tw_real_d_0 = twiddles_real_.back()[2].data();
-                params.tw_imag_d_0 = twiddles_imag_.back()[2].data();
+                params.twiddles = twiddles_.data() + tw_pos;
                 params.out_indexes = inout_indexes.data();
                 params.in_indexes = inout_indexes.data();
                 params.subfft_id_start = 0;
@@ -211,6 +197,11 @@ namespace afft
                 params.log_subtwiddle_len = log_subtwiddle_len;
                 params.input_id = input_id;
                 params.output_id = output_id;
+
+                for (auto twiddle : stage_twiddles) {
+                    twiddles_.push_back(twiddle);
+                    tw_pos++;
+                }
 
                 input_id = output_id;
                 output_id++;
@@ -228,16 +219,13 @@ namespace afft
             // Stockham x2 Interleave
             if (subtwiddle_len < n_samples_per_operand) {
 
-                auto stage_twiddles_real = tw::s_radix2_twiddles_real<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
-                auto stage_twiddles_imag = tw::s_radix2_twiddles_imag<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
-                twiddles_real_.push_back(stage_twiddles_real);
-                twiddles_imag_.push_back(stage_twiddles_imag);
+                auto stage_twiddles = tw::s_radix2_twiddles<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
+
                 
                 RadixStage<Spec> radix_stage_;
                 radix_stage_.type = RadixType::s_radix2;
                 auto &params = radix_stage_.params.s_r2;
-                params.tw_real_b_0 = twiddles_real_.back()[0].data();
-                params.tw_imag_b_0 = twiddles_imag_.back()[0].data();
+                params.twiddles = twiddles_.data() + tw_pos;
                 params.out_indexes = inout_indexes.data();
                 params.in_indexes = inout_indexes.data();
                 params.subfft_id_start = 0;
@@ -245,6 +233,11 @@ namespace afft
                 params.log_subtwiddle_len = log_subtwiddle_len;
                 params.input_id = input_id;
                 params.output_id = output_id;
+
+                for (auto twiddle : stage_twiddles) {
+                    twiddles_.push_back(twiddle);
+                    tw_pos++;
+                }
 
                 input_id = output_id;
                 output_id++;
@@ -259,20 +252,12 @@ namespace afft
             }
 
             // Stockham x4 Permute
-            auto stage_twiddles_real = tw::s_radix4_twiddles_real<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
-            auto stage_twiddles_imag = tw::s_radix4_twiddles_imag<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
-            twiddles_real_.push_back(stage_twiddles_real);
-            twiddles_imag_.push_back(stage_twiddles_imag);
+            auto stage_twiddles = tw::s_radix4_twiddles<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
 
             RadixStage<Spec> radix_stage_;
             radix_stage_.type = RadixType::s_radix4;
             auto &params = radix_stage_.params.s_r4;
-            params.tw_real_b_0 = twiddles_real_.back()[0].data();
-            params.tw_imag_b_0 = twiddles_imag_.back()[0].data();
-            params.tw_real_c_0 = twiddles_real_.back()[1].data();
-            params.tw_imag_c_0 = twiddles_imag_.back()[1].data();
-            params.tw_real_d_0 = twiddles_real_.back()[2].data();
-            params.tw_imag_d_0 = twiddles_imag_.back()[2].data();
+            params.twiddles = twiddles_.data() + tw_pos;
             params.out_indexes = out_indexes.data();
             params.in_indexes = in_indexes.data();
             params.subfft_id_start = 0;
@@ -281,6 +266,11 @@ namespace afft
 
             params.input_id = input_id;
             params.output_id = output_id;
+
+            for (auto twiddle : stage_twiddles) {
+                twiddles_.push_back(twiddle);
+                tw_pos++;
+            }
 
             input_id = output_id;
             output_id++;
@@ -299,20 +289,20 @@ namespace afft
 
                 if (2 * subtwiddle_len == n_samples)
                 {
-                    auto stage_twiddles_real = tw::ct_radix2_twiddles_real<Spec, Allocator>(subtwiddle_len);
-                    auto stage_twiddles_imag = tw::ct_radix2_twiddles_imag<Spec, Allocator>(subtwiddle_len);
-                    twiddles_real_.push_back(stage_twiddles_real);
-                    twiddles_imag_.push_back(stage_twiddles_imag);
+                    auto stage_twiddles = tw::ct_radix2_twiddles<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
 
                     RadixStage<Spec> radix_stage_;
                     radix_stage_.type = RadixType::ct_radix2;
                     auto &params = radix_stage_.params.ct_r2; 
-                    params.tw_real_b_0 = twiddles_real_.back()[0].data();
-                    params.tw_imag_b_0 = twiddles_imag_.back()[0].data();
+                    params.twiddles = twiddles_.data() + tw_pos;
                     params.subtwiddle_len = subtwiddle_len;
                     params.subtwiddle_start = 0;
                     params.subtwiddle_end = subtwiddle_len;
-                    params.stride = 1;
+
+                    for (auto twiddle : stage_twiddles) {
+                        twiddles_.push_back(twiddle);
+                        tw_pos++;
+                    }
 
                     radix_stages_.push_back(radix_stage_);
                     subtwiddle_len *= 2;
@@ -321,26 +311,22 @@ namespace afft
                 }
                 else
                 {
-                    auto stage_twiddles_real = tw::ct_radix4_twiddles_real<Spec, Allocator>(subtwiddle_len);
-                    auto stage_twiddles_imag = tw::ct_radix4_twiddles_imag<Spec, Allocator>(subtwiddle_len);
-                    twiddles_real_.push_back(stage_twiddles_real);
-                    twiddles_imag_.push_back(stage_twiddles_imag);
+                    auto stage_twiddles = tw::ct_radix4_twiddles<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
 
                     RadixStage<Spec> radix_stage_;
                     radix_stage_.type = RadixType::ct_radix4;
                     auto &params = radix_stage_.params.ct_r4; 
-                    params.tw_real_b_0 = twiddles_real_.back()[0].data();
-                    params.tw_imag_b_0 = twiddles_imag_.back()[0].data();
-                    params.tw_real_c_0 = twiddles_real_.back()[1].data();
-                    params.tw_imag_c_0 = twiddles_imag_.back()[1].data();
-                    params.tw_real_d_0 = twiddles_real_.back()[2].data();
-                    params.tw_imag_d_0 = twiddles_imag_.back()[2].data();
+                    params.twiddles = twiddles_.data() + tw_pos;
                     params.subfft_id_start = 0;
                     params.subfft_id_end = n_samples / subtwiddle_len / 4;
                     params.subtwiddle_len = subtwiddle_len;
                     params.subtwiddle_start = 0;
                     params.subtwiddle_end = subtwiddle_len;
-                    params.stride = 1;
+                    
+                    for (auto twiddle : stage_twiddles) {
+                        twiddles_.push_back(twiddle);
+                        tw_pos++;
+                    }
 
                     radix_stages_.push_back(radix_stage_);
                     subtwiddle_len *= 4;
@@ -352,8 +338,86 @@ namespace afft
         ButterflyPlan(std::size_t n_samples, std::size_t max_n_samples_per_operand, std::size_t prefetch_lookahead, std::size_t min_partition_len)
             : ButterflyPlan(n_samples, max_n_samples_per_operand, prefetch_lookahead)
         {
+            // namespace bp = afft::butterfly_partitioning;
+            
+            // std::size_t n_samples_per_operand = 1 << log_n_samples_per_operand_;
 
-                        // This version of the constructor turns an iterative butterfly plan into a split-and-repeat plan
+            // std::vector<std::vector<RadixStage<Spec>>> partitioned_stage_groups;
+            // std::vector<RadixStage<Spec>> non_partitioned_stages;
+            // auto initial_radix_stages = radix_stages_;
+            // radix_stages_.clear();
+            
+            // //Add the Stockham stages back in 
+            // for (std::size_t stage_id = 0; stage_id < n_s_radix_stages_; stage_id++) {
+            //     radix_stages_.push_back(initial_radix_stages[stage_id]);
+            // }
+
+            // for (std::size_t stage_id = n_s_radix_stages_; stage_id < initial_radix_stages.size(); stage_id++) {
+            //     non_partitioned_stages.push_back(initial_radix_stages[stage_id]);
+            // }
+
+            // while (!non_partitioned_stages.empty()) {
+                
+            //     auto partition_results = bp::partition(non_partitioned_stages, n_samples_per_operand, 32);
+            //     non_partitioned_stages = partition_results.first;
+            //     partitioned_stage_groups.push_back(partition_results.second);
+
+            //     for (auto &radix_stage : non_partitioned_stages) {
+            //         if (radix_stage.type == RadixType::ct_radix2) {
+            //             auto &params = radix_stage.params.ct_r2;
+            //         }
+            //         if (radix_stage.type == RadixType::ct_radix4) {
+            //             auto &params = radix_stage.params.ct_r4;
+            //         }
+            //     }
+            //     for (auto &radix_stage : partition_results.second) {
+            //         if (radix_stage.type == RadixType::ct_radix2) {
+            //             auto &params = radix_stage.params.ct_r2;
+            //         }
+            //         if (radix_stage.type == RadixType::ct_radix4) {
+            //             auto &params = radix_stage.params.ct_r4;
+            //         }
+            //     }
+            // }
+
+            // while (!partitioned_stage_groups.empty()) {
+            //     auto &stages = partitioned_stage_groups.back();
+            //     radix_stages_.insert(
+            //         radix_stages_.end(),
+            //         stages.begin(),
+            //         stages.end()
+            //     );
+            //     partitioned_stage_groups.pop_back();
+            // }
+
+            // for (auto &radix_stage : radix_stages_) {
+            //     if (radix_stage.type == RadixType::ct_radix2) {
+            //         auto &params = radix_stage.params.ct_r2;
+            //         // std::cout 
+            //         //     << "ct_radix2 " 
+            //         //     << "- "
+            //         //     << "- "
+            //         //     << params.subtwiddle_len << " "
+            //         //     << params.subtwiddle_start << " "
+            //         //     << params.subtwiddle_end << " "
+            //         //     << std::endl;
+            //     }
+            //     if (radix_stage.type == RadixType::ct_radix4) {
+            //         auto &params = radix_stage.params.ct_r4;
+            //         std::size_t subfft_id_start;
+            //         std::size_t subfft_id_end;
+            //         // std::cout 
+            //         //     << "ct_radix4 " 
+            //         //     << params.subfft_id_start << " "
+            //         //     << params.subfft_id_end << " "
+            //         //     << params.subtwiddle_len << " "
+            //         //     << params.subtwiddle_start << " "
+            //         //     << params.subtwiddle_end << " "
+            //         //     << std::endl;
+            //     }
+            // }
+
+            // This version of the constructor turns an iterative butterfly plan into a split-and-repeat plan
             
             // namespace cm = afft::common_math;
             // std::size_t n_samples_per_operand = 1 << log_n_samples_per_operand_;
@@ -444,7 +508,7 @@ namespace afft
             //     }
             // }
 
-
+            //////////////////////////////////////////////////////////////////
             // This version of the constructor turns an iterative butterfly plan into a hybrid/recursive plan
             std::vector<std::size_t> open_radix_stage_ids;
             std::vector<std::size_t> open_radix_stage_partition_counts;

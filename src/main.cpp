@@ -47,7 +47,7 @@ void check_fft()
 {
     cout << "check_fft OperandSize: " << OperandSize << endl;
     std::vector<std::size_t> trials;
-    for (std::size_t i = 1; i < 20; i++)
+    for (std::size_t i = 10; i < 18; i++)
     {
         trials.push_back(1 << i);
     }
@@ -421,10 +421,11 @@ void do_bench()
         // Allocate complex buffers
         Ipp64fc *pSrc = ippsMalloc_64fc(n_samples);
         Ipp64fc *pDst = ippsMalloc_64fc(n_samples);
-        std::vector<double, xsimd::aligned_allocator<double, 1024>> x_real(n_samples);
-        std::vector<double, xsimd::aligned_allocator<double, 1024>> x_imag(n_samples);
-        std::vector<double, xsimd::aligned_allocator<double, 1024>> y_real(n_samples);
-        std::vector<double, xsimd::aligned_allocator<double, 1024>> y_imag(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> data(4 * n_samples);
+        auto x_real = data.data();
+        auto y_real = data.data() + n_samples;
+        auto x_imag = data.data() + 2 * n_samples;
+        auto y_imag = data.data() + 3 * n_samples;
 
         // Query to get buffer sizes
         int sizeFFTSpec_Fast, sizeFFTInitBuf_Fast, sizeFFTWorkBuf_Fast;
@@ -505,7 +506,7 @@ void do_bench()
 
 
         bench.run("AFFT", [&]()
-                  { simd_fft.eval(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
+                  { simd_fft.eval(y_real, y_imag, x_real, x_imag); });
 
         std::cout << y_real[0] << pDst[0].re << std::endl;
 

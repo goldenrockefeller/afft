@@ -6,12 +6,11 @@
 namespace afft{
     template <typename Spec>
     struct CtRadix2Params {
-        typename Spec::sample* tw_real_b_0; 
-        typename Spec::sample* tw_imag_b_0; 
+        typename Spec::sample* twiddles; 
         std::size_t subtwiddle_len;
         std::size_t subtwiddle_start;
         std::size_t subtwiddle_end;
-        std::size_t stride;
+        std::ptrdiff_t output_offset;
     };
 }
 #endif

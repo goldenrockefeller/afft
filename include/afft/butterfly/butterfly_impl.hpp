@@ -85,12 +85,7 @@ namespace afft
                             data_imag[params.output_id],
                             in_real,
                             in_imag,
-                            params.tw_real_b_0,
-                            params.tw_imag_b_0,
-                            params.tw_real_c_0,
-                            params.tw_imag_c_0,
-                            params.tw_real_d_0,
-                            params.tw_imag_d_0,
+                            params.twiddles,
                             params.out_indexes,
                             params.in_indexes,
                             params.subfft_id_start,
@@ -111,8 +106,7 @@ namespace afft
                             data_imag[params.output_id],
                             in_real,
                             in_imag,
-                            params.tw_real_b_0,
-                            params.tw_imag_b_0,
+                            params.twiddles,
                             params.out_indexes,
                             params.in_indexes,
                             params.subfft_id_start,
@@ -140,18 +134,12 @@ namespace afft
                             out_imag,
                             out_real,
                             out_imag,
-                            params.tw_real_b_0,
-                            params.tw_imag_b_0,
-                            params.tw_real_c_0,
-                            params.tw_imag_c_0,
-                            params.tw_real_d_0,
-                            params.tw_imag_d_0,
+                            params.twiddles,
                             params.subfft_id_start,
                             params.subfft_id_end,
                             params.subtwiddle_len,
                             params.subtwiddle_start,
-                            params.subtwiddle_end,
-                            params.stride);
+                            params.subtwiddle_end);
                     }
                     break;
                 case RadixType::s_radix4:
@@ -162,12 +150,7 @@ namespace afft
                             data_imag[params.output_id],
                             data_real[params.input_id],
                             data_imag[params.input_id],
-                            params.tw_real_b_0,
-                            params.tw_imag_b_0,
-                            params.tw_real_c_0,
-                            params.tw_imag_c_0,
-                            params.tw_real_d_0,
-                            params.tw_imag_d_0,
+                            params.twiddles,
                             params.out_indexes,
                             params.in_indexes,
                             params.subfft_id_start,
@@ -179,18 +162,17 @@ namespace afft
                     break;
                 case RadixType::ct_radix2:
                     {
+                        
                         auto &params = radix_stage.params.ct_r2;
                         do_ct_radix2_stage<Spec>(
                             out_real,
                             out_imag,
                             out_real,
                             out_imag,
-                            params.tw_real_b_0,
-                            params.tw_imag_b_0,
+                            params.twiddles,
                             params.subtwiddle_len,
                             params.subtwiddle_start,
-                            params.subtwiddle_end,
-                            params.stride);
+                            params.subtwiddle_end);
                     }
                     break;
                 case RadixType::s_radix2:
@@ -201,8 +183,7 @@ namespace afft
                             data_imag[params.output_id],
                             data_real[params.input_id],
                             data_imag[params.input_id],
-                            params.tw_real_b_0,
-                            params.tw_imag_b_0,
+                            params.twiddles,
                             params.out_indexes,
                             params.in_indexes,
                             params.subfft_id_start,
