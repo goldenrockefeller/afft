@@ -13,6 +13,8 @@ namespace afft{
         std::size_t subtwiddle_start;
         std::size_t subtwiddle_end;
         std::ptrdiff_t output_offset;
+        std::size_t output_id;
+        std::size_t input_id;
     };
 }
 #endif

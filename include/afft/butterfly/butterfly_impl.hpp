@@ -22,11 +22,10 @@ namespace afft
         using sample = typename Spec::sample; 
 
         ButterflyPlan<sample_spec, Allocator> plan_;
-        mutable std::vector<sample, Allocator> buf_real_;
-        mutable std::vector<sample, Allocator> buf_imag_;
+        mutable std::vector<sample, Allocator> buf_;
 
         public:
-        explicit ButterflyImpl(std::size_t n_samples) : plan_(n_samples, Spec::n_samples_per_operand, Spec::prefetch_lookahead, Spec::min_partition_len), buf_real_(n_samples), buf_imag_(n_samples){}
+        explicit ButterflyImpl(std::size_t n_samples) : plan_(n_samples, Spec::n_samples_per_operand, Spec::prefetch_lookahead, Spec::min_partition_len), buf_(2 * n_samples) {}
 
         const ButterflyPlan<sample_spec, Allocator> &plan() const
         {
@@ -39,35 +38,43 @@ namespace afft
             sample *out_imag,
             const sample *in_real,
             const sample *in_imag,
-            sample *buf_real,
-            sample *buf_imag,
+            sample *buf,
             const ButterflyPlan<sample_spec, Allocator> &plan)
         {
 
             using sample = sample;
             sample scaling_factor;
 
-            sample *data_real[3];
-            sample *data_imag[3];
+            sample *s_io_real[3];
+            sample *s_io_imag[3];
+
+            sample *ct_io_real[2];
+            sample *ct_io_imag[2];
             
             if (plan.n_s_radix_stages() % 2 == 0){
-                data_real[0] = nullptr;
-                data_real[1] = buf_real;
-                data_real[2] = out_real;
+                s_io_real[0] = nullptr;
+                s_io_real[1] = buf;
+                s_io_real[2] = out_real;
 
-                data_imag[0] = nullptr;
-                data_imag[1] = buf_imag;
-                data_imag[2] = out_imag;
+                s_io_imag[0] = nullptr;
+                s_io_imag[1] = buf + plan.n_samples();
+                s_io_imag[2] = out_imag;
             }
             else {
-                data_real[0] = nullptr;
-                data_real[1] = out_real;
-                data_real[2] = buf_real;
+                s_io_real[0] = nullptr;
+                s_io_real[1] = out_real;
+                s_io_real[2] = buf;
 
-                data_imag[0] = nullptr;
-                data_imag[1] = out_imag;
-                data_imag[2] = buf_imag;
+                s_io_imag[0] = nullptr;
+                s_io_imag[1] = out_imag;
+                s_io_imag[2] = buf + plan.n_samples();
             }
+
+            ct_io_real[0] = out_real;
+            ct_io_real[1] = buf;
+
+            ct_io_imag[0] = out_imag;
+            ct_io_imag[1] = buf + 1024;
 
             // First stage, always Stockholm, takes input to buffer_1 / buffer_2, perform rescaling, no twiddles
             {
@@ -81,8 +88,8 @@ namespace afft
                     {
                         auto &params = radix_stage.params.s_r4;
                         do_s_radix4_stage<Spec, Rescaling, false>(
-                            data_real[params.output_id],
-                            data_imag[params.output_id],
+                            s_io_real[params.output_id],
+                            s_io_imag[params.output_id],
                             in_real,
                             in_imag,
                             params.twiddles,
@@ -102,8 +109,8 @@ namespace afft
                         
                         auto &params = radix_stage.params.s_r2;
                         do_s_radix2_stage<Spec, Rescaling, false>(
-                            data_real[params.output_id],
-                            data_imag[params.output_id],
+                            s_io_real[params.output_id],
+                            s_io_imag[params.output_id],
                             in_real,
                             in_imag,
                             params.twiddles,
@@ -146,10 +153,10 @@ namespace afft
                     {
                         auto &params = radix_stage.params.s_r4;
                         do_s_radix4_stage<Spec, false, true>(
-                            data_real[params.output_id],
-                            data_imag[params.output_id],
-                            data_real[params.input_id],
-                            data_imag[params.input_id],
+                            s_io_real[params.output_id],
+                            s_io_imag[params.output_id],
+                            s_io_real[params.input_id],
+                            s_io_imag[params.input_id],
                             params.twiddles,
                             params.out_indexes,
                             params.in_indexes,
@@ -179,10 +186,10 @@ namespace afft
                     {
                         auto &params = radix_stage.params.s_r2;
                         do_s_radix2_stage<Spec, false, true>(
-                            data_real[params.output_id],
-                            data_imag[params.output_id],
-                            data_real[params.input_id],
-                            data_imag[params.input_id],
+                            s_io_real[params.output_id],
+                            s_io_imag[params.output_id],
+                            s_io_real[params.input_id],
+                            s_io_imag[params.input_id],
                             params.twiddles,
                             params.out_indexes,
                             params.in_indexes,
@@ -209,8 +216,7 @@ namespace afft
                 out_imag,
                 in_real,
                 in_imag,
-                buf_real_.data(),
-                buf_imag_.data(),
+                buf_.data(),
                 plan_);
         }
     };
