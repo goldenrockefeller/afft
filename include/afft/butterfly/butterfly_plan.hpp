@@ -105,7 +105,6 @@ namespace afft
                 out_indexes.push_back(indexes_len);
             }
 
-
             std::size_t subtwiddle_len = 1;
             std::size_t log_subtwiddle_len = 0;
 

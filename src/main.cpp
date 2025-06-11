@@ -47,7 +47,7 @@ void check_fft()
 {
     cout << "check_fft OperandSize: " << OperandSize << endl;
     std::vector<std::size_t> trials;
-    for (std::size_t i = 10; i < 18; i++)
+    for (std::size_t i = 1; i < 18; i++)
     {
         trials.push_back(1 << i);
     }
@@ -282,7 +282,7 @@ void check_fft_double2sse()
 {
     cout << "check_fft_double2sse" << endl;
     std::vector<std::size_t> trials;
-    for (std::size_t i = 1; i < 20; i++)
+    for (std::size_t i = 1; i < 6; i++)
     {
         trials.push_back(1 << i);
     }
@@ -339,11 +339,14 @@ void check_fft_double2sse()
         //     x_real[i] = 0;
         //     x_imag[i] = 0;
         // }
-        // x_real[0] = 1;
+        // x_imag[0] = 1;
         // std::cout << "DEBUG" << std::endl;
         // fft.eval(y_real.data(), y_imag.data(), x_real.data(), x_imag.data());
-        // for (size_t i =0 ; i<n_samples; i ++) {
-        //     std::cout << "x_real: " << x_real[i] <<endl;
+        // for (size_t i = 0 ; i<n_samples; i ++) {
+        //     std::cout << "y_real: " << y_real[i] <<endl;
+        // }
+        // for (size_t i = 0 ; i<n_samples; i ++) {
+        //     std::cout << "y_imag: " << y_imag[i] <<endl;
         // }
 
         /////////////////// COMPUTE

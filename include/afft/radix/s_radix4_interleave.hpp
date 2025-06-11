@@ -237,8 +237,6 @@ namespace afft
             out_imag_c += box_size;
             out_real_d += box_size;
             out_imag_d += box_size;
-
-            
         }
     }
 }

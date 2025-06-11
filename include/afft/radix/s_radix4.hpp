@@ -3,8 +3,7 @@
 
 #include <cstddef>
 
-#include "afft/radix/s_radix4_no_interleave.hpp"
-#include "afft/radix/s_radix4_interleave.hpp"
+#include "afft/radix/s_radix4_impl.hpp"
 
 namespace afft
 {
@@ -23,12 +22,10 @@ namespace afft
         std::size_t n_samples,
         const typename Spec::sample &scaling_factor)
     {
-        if (out_indexes != in_indexes)
+        switch (log_subtwiddle_len)
         {
-            // This is the last Stockham Stage, do not inteleave!
-            // Indexes are probably ordered bit reversed index for better cache optimality
-            
-            do_s_radix4_stage_no_interleave<Spec, Rescaling, HasTwiddles>(
+        case 0:
+            do_s_radix4_stage_impl<Spec, Rescaling, HasTwiddles, 0>(
                 out_real,
                 out_imag,
                 in_real,
@@ -40,114 +37,142 @@ namespace afft
                 subfft_id_end,
                 n_samples,
                 scaling_factor);
-
-            return;
-        }
-        switch (log_subtwiddle_len)
-        {
-        case 0:
-            do_s_radix4_stage_interleave<Spec, Rescaling, HasTwiddles, 0>(
-                out_real,
-                out_imag,
-                in_real,
-                in_imag,
-                twiddles,
-                subfft_id_start,
-                subfft_id_end,
-                n_samples,
-                scaling_factor);
             break;
         case 1:
-            do_s_radix4_stage_interleave<Spec, Rescaling, HasTwiddles, 1>(
+            do_s_radix4_stage_impl<Spec, Rescaling, HasTwiddles, 1>(
                 out_real,
                 out_imag,
                 in_real,
                 in_imag,
                 twiddles,
+                out_indexes,
+                in_indexes,
                 subfft_id_start,
                 subfft_id_end,
                 n_samples,
                 scaling_factor);
             break;
         case 2:
-            do_s_radix4_stage_interleave<Spec, Rescaling, HasTwiddles, 2>(
+            do_s_radix4_stage_impl<Spec, Rescaling, HasTwiddles, 2>(
                 out_real,
                 out_imag,
                 in_real,
                 in_imag,
                 twiddles,
+                out_indexes,
+                in_indexes,
                 subfft_id_start,
                 subfft_id_end,
                 n_samples,
                 scaling_factor);
             break;
         case 3:
-            do_s_radix4_stage_interleave<Spec, Rescaling, HasTwiddles, 3>(
+            do_s_radix4_stage_impl<Spec, Rescaling, HasTwiddles, 3>(
                 out_real,
                 out_imag,
                 in_real,
                 in_imag,
                 twiddles,
+                out_indexes,
+                in_indexes,
                 subfft_id_start,
                 subfft_id_end,
                 n_samples,
                 scaling_factor);
             break;
         case 4:
-            do_s_radix4_stage_interleave<Spec, Rescaling, HasTwiddles, 4>(
+            do_s_radix4_stage_impl<Spec, Rescaling, HasTwiddles, 4>(
                 out_real,
                 out_imag,
                 in_real,
                 in_imag,
                 twiddles,
+                out_indexes,
+                in_indexes,
                 subfft_id_start,
                 subfft_id_end,
                 n_samples,
                 scaling_factor);
             break;
         case 5:
-            do_s_radix4_stage_interleave<Spec, Rescaling, HasTwiddles, 5>(
+            do_s_radix4_stage_impl<Spec, Rescaling, HasTwiddles, 5>(
                 out_real,
                 out_imag,
                 in_real,
                 in_imag,
                 twiddles,
+                out_indexes,
+                in_indexes,
                 subfft_id_start,
                 subfft_id_end,
                 n_samples,
                 scaling_factor);
             break;
         case 6:
-            do_s_radix4_stage_interleave<Spec, Rescaling, HasTwiddles, 6>(
+            do_s_radix4_stage_impl<Spec, Rescaling, HasTwiddles, 6>(
                 out_real,
                 out_imag,
                 in_real,
                 in_imag,
                 twiddles,
+                out_indexes,
+                in_indexes,
                 subfft_id_start,
                 subfft_id_end,
                 n_samples,
                 scaling_factor);
             break;
         case 7:
-            do_s_radix4_stage_interleave<Spec, Rescaling, HasTwiddles, 7>(
+            do_s_radix4_stage_impl<Spec, Rescaling, HasTwiddles, 7>(
                 out_real,
                 out_imag,
                 in_real,
                 in_imag,
                 twiddles,
+                out_indexes,
+                in_indexes,
                 subfft_id_start,
                 subfft_id_end,
                 n_samples,
                 scaling_factor);
             break;
         case 8: // Up to interleave 256 support
-            do_s_radix4_stage_interleave<Spec, Rescaling, HasTwiddles, 8>(
+            do_s_radix4_stage_impl<Spec, Rescaling, HasTwiddles, 8>(
                 out_real,
                 out_imag,
                 in_real,
                 in_imag,
                 twiddles,
+                out_indexes,
+                in_indexes,
+                subfft_id_start,
+                subfft_id_end,
+                n_samples,
+                scaling_factor);
+            break;
+        case 9: // Up to interleave 256 support
+            do_s_radix4_stage_impl<Spec, Rescaling, HasTwiddles, 9>(
+                out_real,
+                out_imag,
+                in_real,
+                in_imag,
+                twiddles,
+                out_indexes,
+                in_indexes,
+                subfft_id_start,
+                subfft_id_end,
+                n_samples,
+                scaling_factor);
+            break;
+        case 10: // Up to interleave 256 support
+            do_s_radix4_stage_impl<Spec, Rescaling, HasTwiddles, 10>(
+                out_real,
+                out_imag,
+                in_real,
+                in_imag,
+                twiddles,
+                out_indexes,
+                in_indexes,
                 subfft_id_start,
                 subfft_id_end,
                 n_samples,
