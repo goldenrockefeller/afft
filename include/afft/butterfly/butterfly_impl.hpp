@@ -50,7 +50,7 @@ namespace afft
 
             sample *ct_io_real[2];
             sample *ct_io_imag[2];
-            
+
             if (plan.n_s_radix_stages() % 2 == 0){
                 s_io_real[0] = nullptr;
                 s_io_real[1] = buf;
