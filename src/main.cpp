@@ -16,6 +16,8 @@
 #include "afft/spec/val_array_spec.hpp"
 #include "afft/spec/double4_avx2_spec.hpp"
 #include "afft/spec/double2_sse2_spec.hpp"
+#include "afft/radix/ct_radix4_research.hpp"
+#include "afft/radix/s_radix4_research_impl.hpp"
 #include <random>
 #include <iostream>
 #include <cmath>
@@ -397,11 +399,13 @@ void check_fft_double2sse()
     }
 }
 
+
+
 void do_bench()
 {
     cout << "do_bench: " << endl;
     std::vector<std::size_t> trials;
-    for (std::size_t i = 1; i < 18; i++)
+    for (std::size_t i = 1; i < 20; i++)
     {
         trials.push_back(1 << i);
     }
@@ -511,6 +515,42 @@ void do_bench()
         bench.run("AFFT", [&]()
                   { simd_fft.eval(y_real, y_imag, x_real, x_imag); });
 
+        if (n_samples > 16) {
+            
+            std::size_t sqrt_n = 1 << (int_log_2(n_samples) / 2);
+            FftComplex<Double4Avx2Spec, xsimd::aligned_allocator<double, 1024>> simd_fft_sqr(1 << (int_log_2(n_samples) / 2));
+            bench.run("AFFT 4-step", [&]()
+            { 
+
+                for(std::size_t i = 0; i < 2 * (1 + (sqrt_n * sqrt_n < n_samples)); i ++) {
+                    IppStatus status = ippiTranspose_32fc_C1R(
+                        (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
+                        (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
+                        { (int) sqrt_n, (int)  sqrt_n }                            // size of the source matrix
+                    );
+                    status = ippiTranspose_32fc_C1R(
+                        (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
+                        (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
+                        { (int)  sqrt_n,  (int) sqrt_n }                            // size of the source matrix
+                    );
+                    for(std::size_t j = 0; j < sqrt_n; j ++) {
+                        simd_fft_sqr.eval(y_real + j * sqrt_n, y_imag  + j * sqrt_n, y_real + j * sqrt_n, y_imag + j * sqrt_n);
+                    }
+                }  
+                IppStatus status = ippiTranspose_32fc_C1R(
+                    (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
+                    (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
+                    { (int) sqrt_n, (int)  sqrt_n }                            // size of the source matrix
+                );
+                status = ippiTranspose_32fc_C1R(
+                    (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
+                    (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
+                    { (int)  sqrt_n,  (int) sqrt_n }                            // size of the source matrix
+                );          
+            });
+        }
+
+
         std::cout << y_real[0] << pDst[0].re << std::endl;
 
         /////////////////// CLEANUP
@@ -535,13 +575,192 @@ void do_bench()
     }
 }
 
+
+void do_research_bench() {
+
+    cout << "do_bench: " << endl;
+    std::vector<std::size_t> trials;
+    for (std::size_t i = 4; i < 20; i+=2)
+    {
+        trials.push_back(1 << i);
+    }
+    for (auto n_samples : trials)
+    {
+
+        ankerl::nanobench::Bench bench;
+        ostringstream title_stream;
+        title_stream << "n_samples: " << n_samples;
+        bench.title(title_stream.str());
+        bench.relative(true);
+
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> data(4 * (n_samples + 256 * 4));
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> twiddles(4 * (n_samples + 256 * 4));
+        auto x_real = data.data();
+        auto y_real = data.data() + n_samples;
+        auto x_imag = data.data() + 2 * n_samples;
+        auto y_imag = data.data() + 3 * n_samples;
+
+
+        auto rng = RandomGenerator();
+
+        // Set up random number
+        for (size_t i = 0; i < data.size(); i++)
+        {
+            auto r = rng.gen();
+            data[i] = r;
+        }
+
+        for (size_t i = 0; i < twiddles.size(); i++)
+        {
+            auto r = rng.gen();
+            twiddles[i] = r;
+        }
+
+        /////////////////// COMPUTE
+
+        
+        
+
+        bench.run("Ct Research 512", [&]()
+        { 
+            // Rarify loads (modulus method, or for loop method)
+            do_ct_radix4_research_stage<Double4Avx2Spec>(
+                y_real,
+                y_real + 4, // Interleave (2 to 11% boost)
+                x_real,
+                x_real + 4,
+                twiddles.data(),
+                0,
+                1,
+                n_samples / 4,
+                0,
+                n_samples / 4,
+                8, // Interleave (2 to 11% boost)
+                24,
+                n_samples/4 + 512, // Non cache-resonance (2 to 11% boost)
+                4
+            );
+            // Prefetch: No definitive boost.
+        });
+
+        bench.run("Ct Research Interleaved 4", [&]()
+        { 
+            // Rarify loads (modulus method, or for loop method)
+            do_ct_radix4_research_stage<Double4Avx2Spec>(
+                y_real,
+                y_real + 4, // Interleave (2 to 11% boost)
+                x_real,
+                x_real + 4,
+                twiddles.data(),
+                0,
+                1,
+                n_samples / 4,
+                0,
+                n_samples / 4,
+                8 * 4, // Interleave (2 to 11% boost)
+                24,
+                8, // Non cache-resonance (2 to 11% boost)
+                4
+            );
+            // Prefetch: No definitive boost.
+        });
+        
+        bench.run("Ct Research No offset", [&]()
+        { 
+            // Rarify loads (modulus method, or for loop method)
+            do_ct_radix4_research_stage<Double4Avx2Spec>(
+                y_real,
+                y_real + 4, // Interleave (2 to 11% boost)
+                y_real,
+                y_real + 4,
+                twiddles.data(),
+                0,
+                1,
+                n_samples / 4,
+                0,
+                n_samples / 4,
+                8 , // Interleave (2 to 11% boost)
+                24,
+                n_samples / 4, // Non cache-resonance (2 to 11% boost)
+                4
+            );
+            // Prefetch: No definitive boost.
+        });
+
+        
+
+        bench.run("Ct Base", [&]()
+        { 
+            do_ct_radix4_stage<Double4Avx2Spec>(
+                x_real,
+                x_imag,
+                x_real,
+                x_imag,
+                twiddles.data(),
+                0,
+                1,
+                n_samples / 4,
+                0,
+                n_samples / 4);
+        });
+
+        bench.run("S0 Base", [&]()
+        { 
+            do_s_radix4_stage_impl<Double4Avx2Spec, false, true, 0>(
+                y_real,
+                y_imag,
+                x_real,
+                x_imag,
+                twiddles.data(),
+                nullptr,
+                nullptr,
+                0,
+                n_samples / 4 / 4,
+                n_samples,
+                1.);
+        });
+
+        bench.run("S0 Research", [&]()
+        { 
+            // Use output prefetcher when output differs from input
+            do_s_radix4_research_stage_impl<Double4Avx2Spec, false, true, 0>(
+                y_real,
+                y_imag,
+                x_real,
+                x_imag,
+                twiddles.data(),
+                nullptr,
+                nullptr,
+                0,
+                n_samples / 4 / 4 ,
+                n_samples,
+                1.,
+                4 * 4 , // box_stride
+                4 , // out_stride
+                n_samples / 4 + 512//subtwiddle_stride
+            );
+        });
+
+        // Use output prefetcher (after store, before incremenent)
+        // Offset output buffer by 512 or 1024
+        // Interleave real and imaginary parts
+        // Input strides as parameters
+        // "Transpose" and use either modulus twiddle strides or for loop twiddle strides (reduces twiddle loads)
+        
+        std::cout << y_real[0] << std::endl;
+
+    }
+
+    
+}
+
 int main()
 {
     
     
-    do_bench();
+    do_research_bench();
 
-    check_fft<1>();
+    // check_fft<1>();
     // check_fft<2>();
     // check_fft<4>();
     // check_fft<8>();
@@ -551,8 +770,8 @@ int main()
     // check_fft<128>();
     // check_fft<256>();
 
-    check_fft_double2sse();
-    check_fft_double4avx();
+    // check_fft_double2sse();
+    // check_fft_double4avx();
 
     
     std::cout << "Done." << std::endl;
