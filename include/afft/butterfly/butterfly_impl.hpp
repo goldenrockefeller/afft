@@ -25,7 +25,7 @@ namespace afft
         mutable std::vector<sample, Allocator> buf_;
 
         public:
-        explicit ButterflyImpl(std::size_t n_samples) : plan_(n_samples, Spec::n_samples_per_operand, Spec::prefetch_lookahead, Spec::min_partition_len), buf_(2 * n_samples) {}
+        explicit ButterflyImpl(std::size_t n_samples) : plan_(n_samples, Spec::n_samples_per_operand, Spec::prefetch_lookahead, Spec::min_partition_len), buf_(2 * n_samples + 2048) {}
 
         const ButterflyPlan<sample_spec, Allocator> &plan() const
         {
@@ -50,6 +50,10 @@ namespace afft
 
             sample *ct_io_real[2];
             sample *ct_io_imag[2];
+
+            if (plan.n_samples() > 4096) {
+                buf = buf + 1024;
+            }
 
             if (plan.n_s_radix_stages() % 2 == 0){
                 s_io_real[0] = nullptr;
@@ -139,8 +143,6 @@ namespace afft
                         do_ct_radix4_stage<Spec>(
                             out_real,
                             out_imag,
-                            out_real,
-                            out_imag,
                             params.twiddles,
                             params.subfft_id_start,
                             params.subfft_id_end,
@@ -172,8 +174,6 @@ namespace afft
                         
                         auto &params = radix_stage.params.ct_r2;
                         do_ct_radix2_stage<Spec>(
-                            out_real,
-                            out_imag,
                             out_real,
                             out_imag,
                             params.twiddles,

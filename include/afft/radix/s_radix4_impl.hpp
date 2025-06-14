@@ -235,7 +235,7 @@ namespace afft
             } else {
                 out_index = out_indexes[subfft_id + Spec::prefetch_lookahead];
                 in_index = in_indexes[subfft_id + Spec::prefetch_lookahead];
-            }
+            
 
             in_a_offset = in_index * Spec::n_samples_per_operand;
             in_b_offset = in_index * Spec::n_samples_per_operand + n_samples_2;
@@ -265,23 +265,24 @@ namespace afft
             out_real_d = out_real + out_d_offset;
             out_imag_d = out_imag + out_d_offset;
 
-            // Spec::prefetch(in_real_a);
-            // Spec::prefetch(in_imag_a);
-            // Spec::prefetch(in_real_b);
-            // Spec::prefetch(in_imag_b);
-            // Spec::prefetch(in_real_c);
-            // Spec::prefetch(in_imag_c);
-            // Spec::prefetch(in_real_d);
-            // Spec::prefetch(in_imag_d);
+            Spec::prefetch(in_real_a);
+            Spec::prefetch(in_imag_a);
+            Spec::prefetch(in_real_b);
+            Spec::prefetch(in_imag_b);
+            Spec::prefetch(in_real_c);
+            Spec::prefetch(in_imag_c);
+            Spec::prefetch(in_real_d);
+            Spec::prefetch(in_imag_d);
 
-            // Spec::prefetch(out_real_a);
-            // Spec::prefetch(out_imag_a);
-            // Spec::prefetch(out_real_b);
-            // Spec::prefetch(out_imag_b);
-            // Spec::prefetch(out_real_c);
-            // Spec::prefetch(out_imag_c);
-            // Spec::prefetch(out_real_d);
-            // Spec::prefetch(out_imag_d);
+            Spec::prefetch(out_real_a);
+            Spec::prefetch(out_imag_a);
+            Spec::prefetch(out_real_b);
+            Spec::prefetch(out_imag_b);
+            Spec::prefetch(out_real_c);
+            Spec::prefetch(out_imag_c);
+            Spec::prefetch(out_real_d);
+            Spec::prefetch(out_imag_d);
+            }
 
             if ((1 << LogInterleaveFactor) < Spec::n_samples_per_operand) {
                 out_index = subfft_id + Spec::prefetch_lookahead;

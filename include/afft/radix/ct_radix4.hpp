@@ -8,8 +8,6 @@ namespace afft{
     inline void do_ct_radix4_stage(
         typename Spec::sample* out_real, 
         typename Spec::sample* out_imag, 
-        const typename Spec::sample* in_real, 
-        const typename Spec::sample* in_imag, 
         const typename Spec::sample* twiddles,
         std::size_t subfft_id_start,
         std::size_t subfft_id_end,
@@ -61,15 +59,6 @@ namespace afft{
             std::size_t d_offset = a_offset + 3 * subtwiddle_len;
 
             // OFFSET
-            auto in_real_a = in_real + a_offset;
-            auto in_imag_a = in_imag + a_offset;
-            auto in_real_b = in_real + b_offset;
-            auto in_imag_b = in_imag + b_offset;
-            auto in_real_c = in_real + c_offset;
-            auto in_imag_c = in_imag + c_offset;
-            auto in_real_d = in_real + d_offset;
-            auto in_imag_d = in_imag + d_offset;
-
             auto out_real_a = out_real + a_offset;
             auto out_imag_a = out_imag + a_offset;
             auto out_real_b = out_real + b_offset;
@@ -92,14 +81,14 @@ namespace afft{
                 i += data_stride
             ) {                
                 //LOAD
-                Spec::load(alpha_real_a_op, in_real_a);
-                Spec::load(alpha_imag_a_op, in_imag_a);
-                Spec::load(alpha_real_b_op, in_real_b);
-                Spec::load(alpha_imag_b_op, in_imag_b);
-                Spec::load(alpha_real_c_op, in_real_c);
-                Spec::load(alpha_imag_c_op, in_imag_c);
-                Spec::load(alpha_real_d_op, in_real_d);
-                Spec::load(alpha_imag_d_op, in_imag_d);
+                Spec::load(alpha_real_a_op, out_real_a);
+                Spec::load(alpha_imag_a_op, out_imag_a);
+                Spec::load(alpha_real_b_op, out_real_b);
+                Spec::load(alpha_imag_b_op, out_imag_b);
+                Spec::load(alpha_real_c_op, out_real_c);
+                Spec::load(alpha_imag_c_op, out_imag_c);
+                Spec::load(alpha_real_d_op, out_real_d);
+                Spec::load(alpha_imag_d_op, out_imag_d);
 
                 Spec::load(tw_real_b_op, tw_real_b);
                 Spec::load(tw_imag_b_op, tw_imag_b);
@@ -164,15 +153,6 @@ namespace afft{
                 Spec::store(out_imag_d, alpha_imag_d_op);
 
                 // UPDATE OFFSET
-                in_real_a += data_stride;
-                in_imag_a += data_stride;
-                in_real_b += data_stride;
-                in_imag_b += data_stride;
-                in_real_c += data_stride;
-                in_imag_c += data_stride;
-                in_real_d += data_stride;
-                in_imag_d += data_stride;
-
                 out_real_a += data_stride;
                 out_imag_a += data_stride;
                 out_real_b += data_stride;

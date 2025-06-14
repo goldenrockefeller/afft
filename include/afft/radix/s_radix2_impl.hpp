@@ -148,7 +148,6 @@ namespace afft
             } else {
                 out_index = out_indexes[subfft_id + Spec::prefetch_lookahead];
                 in_index = in_indexes[subfft_id + Spec::prefetch_lookahead];
-            }
 
             in_a_offset = in_index * Spec::n_samples_per_operand;
             in_b_offset = in_index * Spec::n_samples_per_operand + n_samples_2;
@@ -175,6 +174,7 @@ namespace afft
             Spec::prefetch(out_imag_a);
             Spec::prefetch(out_real_b);
             Spec::prefetch(out_imag_b);
+            }
 
             if ((1 << LogInterleaveFactor) < Spec::n_samples_per_operand) { 
                 // Do nothing
