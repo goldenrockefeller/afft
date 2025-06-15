@@ -17,7 +17,7 @@ namespace afft
         using fallback_spec = Double2Sse2Spec;
         static constexpr std::size_t n_samples_per_operand = 4;
         static constexpr std::size_t prefetch_lookahead = 4;
-        static constexpr std::size_t min_partition_len = 64;
+        static constexpr std::size_t min_partition_len = 512;
 
         static inline void load(operand &x, const sample *ptr)
         {
