@@ -424,11 +424,13 @@ void do_bench()
         // Allocate complex buffers
         Ipp64fc *pSrc = ippsMalloc_64fc(n_samples);
         Ipp64fc *pDst = ippsMalloc_64fc(n_samples);
-        std::vector<double, xsimd::aligned_allocator<double, 1024>> data(4 * n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> data(4 * n_samples + 128 * 4);
         auto x_real = data.data();
         auto y_real = data.data() + n_samples;
         auto x_imag = data.data() + 2 * n_samples;
         auto y_imag = data.data() + 3 * n_samples;
+        auto x_imag128 = data.data() + 2 * n_samples + 128;
+        auto y_imag128 = data.data() + 3 * n_samples + 128;
 
         // Query to get buffer sizes
         int sizeFFTSpec_Fast, sizeFFTInitBuf_Fast, sizeFFTWorkBuf_Fast;
@@ -507,9 +509,13 @@ void do_bench()
         //           { fft_iterative.eval(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
 
 
+        bench.run("AFFT128", [&]()
+            { simd_fft.eval(y_real, y_imag128, x_real, x_imag128); });
 
         bench.run("AFFT", [&]()
                   { simd_fft.eval(y_real, y_imag, x_real, x_imag); });
+
+
 
         // if (n_samples > 16) {
             
