@@ -122,24 +122,24 @@ namespace afft
                 // Spec::prefetch(out_real_b + box_size * Spec::prefetch_lookahead);
                 // Spec::prefetch(out_imag_b + box_size * Spec::prefetch_lookahead);
                } else {
-                out_index = out_indexes[subfft_id + Spec::prefetch_lookahead];
-                in_index = in_indexes[subfft_id + Spec::prefetch_lookahead];
+                // out_index = out_indexes[subfft_id + Spec::prefetch_lookahead];
+                // in_index = in_indexes[subfft_id + Spec::prefetch_lookahead];
             
-                std::size_t in_a_offset = in_index * Spec::n_samples_per_operand;
-                std::size_t in_b_offset = in_index * Spec::n_samples_per_operand + n_samples_2;
+                // std::size_t in_a_offset = in_index * Spec::n_samples_per_operand;
+                // std::size_t in_b_offset = in_index * Spec::n_samples_per_operand + n_samples_2;
 
-                std::size_t out_a_offset = out_index * box_size;
-                std::size_t out_b_offset = out_index * box_size + Spec::n_samples_per_operand;
+                // std::size_t out_a_offset = out_index * box_size;
+                // std::size_t out_b_offset = out_index * box_size + Spec::n_samples_per_operand;
 
-                Spec::prefetch(in_real_a + in_a_offset);
-                Spec::prefetch(in_imag_a + in_a_offset);
-                Spec::prefetch(in_real_b + in_b_offset);
-                Spec::prefetch(in_imag_b + in_b_offset);
+                // Spec::prefetch(in_real_a + in_a_offset);
+                // Spec::prefetch(in_imag_a + in_a_offset);
+                // Spec::prefetch(in_real_b + in_b_offset);
+                // Spec::prefetch(in_imag_b + in_b_offset);
 
-                Spec::prefetch(out_real_a + out_a_offset);
-                Spec::prefetch(out_imag_a + out_a_offset);
-                Spec::prefetch(out_real_b + out_b_offset);
-                Spec::prefetch(out_imag_b + out_b_offset);
+                // Spec::prefetch(out_real_a + out_a_offset);
+                // Spec::prefetch(out_imag_a + out_a_offset);
+                // Spec::prefetch(out_real_b + out_b_offset);
+                // Spec::prefetch(out_imag_b + out_b_offset);
             }
 
             // LOAD
