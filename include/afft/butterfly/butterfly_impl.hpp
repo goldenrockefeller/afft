@@ -25,7 +25,7 @@ namespace afft
         mutable std::vector<sample, Allocator> buf_;
 
         public:
-        explicit ButterflyImpl(std::size_t n_samples) : plan_(n_samples, Spec::n_samples_per_operand, Spec::prefetch_lookahead, Spec::min_partition_len), buf_(2 * n_samples + 2048) {}
+        explicit ButterflyImpl(std::size_t n_samples) : plan_(n_samples, Spec::n_samples_per_operand, Spec::prefetch_lookahead, Spec::min_partition_len), buf_(2 * n_samples) {}
 
         const ButterflyPlan<sample_spec, Allocator> &plan() const
         {
@@ -45,40 +45,14 @@ namespace afft
             using sample = sample;
             sample scaling_factor;
 
-            sample *s_io_real[3];
-            sample *s_io_imag[3];
+            sample *s_io_real[2];
+            sample *s_io_imag[2];
 
-            sample *ct_io_real[2];
-            sample *ct_io_imag[2];
+            s_io_real[0] = buf;
+            s_io_real[1] = out_real;
 
-            if (plan.n_samples() > 4096) {
-                buf = buf + 1024;
-            }
-
-            if (plan.n_s_radix_stages() % 2 == 0){
-                s_io_real[0] = nullptr;
-                s_io_real[1] = buf;
-                s_io_real[2] = out_real;
-
-                s_io_imag[0] = nullptr;
-                s_io_imag[1] = buf + plan.n_samples();
-                s_io_imag[2] = out_imag;
-            }
-            else {
-                s_io_real[0] = nullptr;
-                s_io_real[1] = out_real;
-                s_io_real[2] = buf;
-
-                s_io_imag[0] = nullptr;
-                s_io_imag[1] = out_imag;
-                s_io_imag[2] = buf + plan.n_samples();
-            }
-
-            ct_io_real[0] = out_real;
-            ct_io_real[1] = buf;
-
-            ct_io_imag[0] = out_imag;
-            ct_io_imag[1] = buf + 1024;
+            s_io_imag[0] = buf + plan.n_samples();
+            s_io_imag[1] = out_imag;
 
             // First stage, always Stockholm, takes input to buffer_1 / buffer_2, perform rescaling, no twiddles
             {
@@ -112,6 +86,7 @@ namespace afft
                     {
                         
                         auto &params = radix_stage.params.s_r2;
+                        
                         do_s_radix2_stage<Spec, Rescaling, false>(
                             s_io_real[params.output_id],
                             s_io_imag[params.output_id],

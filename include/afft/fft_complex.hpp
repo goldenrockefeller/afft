@@ -29,6 +29,42 @@ namespace afft
         {
             butterfly_.template eval<Rescaling>(out_real, out_imag, in_real, in_imag);
         }
+
+        void fft(
+            typename Spec::sample *out_real,
+            typename Spec::sample *out_imag,
+            const typename Spec::sample *in_real,
+            const typename Spec::sample *in_imag)
+        {
+            butterfly_.template eval<false>(out_real, out_imag, in_real, in_imag);
+        }
+
+        void fft_normalized(
+            typename Spec::sample *out_real,
+            typename Spec::sample *out_imag,
+            const typename Spec::sample *in_real,
+            const typename Spec::sample *in_imag)
+        {
+            butterfly_.template eval<true>(out_real, out_imag, in_real, in_imag);
+        }
+
+        void ifft(
+            typename Spec::sample *out_real,
+            typename Spec::sample *out_imag,
+            const typename Spec::sample *in_real,
+            const typename Spec::sample *in_imag)
+        {
+            butterfly_.template eval<true>(in_real, in_imag, out_real, out_imag);
+        }
+
+        void ifft_normalized(
+            typename Spec::sample *out_real,
+            typename Spec::sample *out_imag,
+            const typename Spec::sample *in_real,
+            const typename Spec::sample *in_imag)
+        {
+            butterfly_.template eval<true>(in_real, in_imag, out_real, out_imag);
+        }
     };
 }
 
