@@ -77,7 +77,7 @@ namespace afft
 
             std::size_t n_samples_per_operand = 1 << log_n_samples_per_operand_;
 
-            twiddles_.reserve(2 * n_samples + 2 * n_samples_per_operand * 6 * (n_samples_per_operand + 1));
+            twiddles_.resize(2 * n_samples + 2 * n_samples_per_operand * 6 * (n_samples_per_operand + 1));
             std::size_t tw_pos = 0;
 
             std::size_t indexes_len;
@@ -127,7 +127,7 @@ namespace afft
                     params.output_id = output_id;
 
                     for (auto twiddle : stage_twiddles) {
-                        twiddles_.push_back(twiddle);
+                        twiddles_[tw_pos] = twiddle;
                         tw_pos++;
                     }
 
@@ -156,7 +156,7 @@ namespace afft
                 params.output_id = output_id;
 
                 for (auto twiddle : stage_twiddles) {
-                    twiddles_.push_back(twiddle);
+                    twiddles_[tw_pos] = twiddle;
                     tw_pos++;
                 }
 
@@ -202,12 +202,12 @@ namespace afft
                 params.output_id = output_id;
 
                 for (auto twiddle : stage_twiddles) {
-                    twiddles_.push_back(twiddle);
+                    twiddles_[tw_pos] = twiddle;
                     tw_pos++;
                 }
 
-                input_id = output_id;
-                output_id ^= 1;
+                // input_id = output_id;
+                // output_id ^= 1;
 
                 radix_stages_.push_back(radix_stage_);
                 subtwiddle_len *= 4;
@@ -234,7 +234,7 @@ namespace afft
                 params.output_id = output_id;
 
                 for (auto twiddle : stage_twiddles) {
-                    twiddles_.push_back(twiddle);
+                    twiddles_[tw_pos] = twiddle;
                     tw_pos++;
                 }
 
@@ -264,14 +264,14 @@ namespace afft
             params.output_id = output_id;
 
             for (auto twiddle : stage_twiddles) {
-                twiddles_.push_back(twiddle);
+                twiddles_[tw_pos] = twiddle;
                 tw_pos++;
             }
 
-            radix_stages_.push_back(radix_stage_);
-            subtwiddle_len *= 4;
-            log_subtwiddle_len += 2;
-            n_s_radix_stages_ += 1;
+            // radix_stages_.push_back(radix_stage_);
+            // subtwiddle_len *= 4;
+            // log_subtwiddle_len += 2;
+            // n_s_radix_stages_ += 1;
 
             if (output_id == 0) { // the last output should not be the buffer
                 for (auto &stage : radix_stages_) {
@@ -308,7 +308,7 @@ namespace afft
                     params.subtwiddle_end = subtwiddle_len;
 
                     for (auto twiddle : stage_twiddles) {
-                        twiddles_.push_back(twiddle);
+                        twiddles_[tw_pos] = twiddle;
                         tw_pos++;
                     }
 
@@ -332,7 +332,7 @@ namespace afft
                     params.subtwiddle_end = subtwiddle_len;
                     
                     for (auto twiddle : stage_twiddles) {
-                        twiddles_.push_back(twiddle);
+                        twiddles_[tw_pos] = twiddle;
                         tw_pos++;
                     }
 

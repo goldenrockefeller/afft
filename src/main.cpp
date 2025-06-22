@@ -485,6 +485,8 @@ void do_bench()
         }
 
         /////////////////// COMPUTE
+        
+        bench.epochIterations(1000);
 
         bench.run("Ipp Fast", [&]()
                   { ippsFFTFwd_CToC_64fc(pSrc, pDst, pFFTSpec_Fast, pFFTWorkBuf_Fast); });
@@ -517,40 +519,40 @@ void do_bench()
 
 
 
-        // if (n_samples > 16) {
+        if (n_samples > 16) {
             
-        //     std::size_t sqrt_n = 1 << (int_log_2(n_samples) / 2);
-        //     FftComplex<Double4Avx2Spec, xsimd::aligned_allocator<double, 1024>> simd_fft_sqr(1 << (int_log_2(n_samples) / 2));
-        //     bench.run("AFFT 4-step", [&]()
-        //     { 
+            std::size_t sqrt_n = 1 << (int_log_2(n_samples) / 2);
+            FftComplex<Double4Avx2Spec, xsimd::aligned_allocator<double, 1024>> simd_fft_sqr(1 << (int_log_2(n_samples) / 2));
+            bench.run("AFFT 4-step", [&]()
+            { 
 
-        //         for(std::size_t i = 0; i < 2 * (1 + (sqrt_n * sqrt_n < n_samples)); i ++) {
-        //             IppStatus status = ippiTranspose_32fc_C1R(
-        //                 (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
-        //                 (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
-        //                 { (int) sqrt_n, (int)  sqrt_n }                            // size of the source matrix
-        //             );
-        //             status = ippiTranspose_32fc_C1R(
-        //                 (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
-        //                 (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
-        //                 { (int)  sqrt_n,  (int) sqrt_n }                            // size of the source matrix
-        //             );
-        //             for(std::size_t j = 0; j < sqrt_n; j ++) {
-        //                 simd_fft_sqr.eval(y_real + j * sqrt_n, y_imag  + j * sqrt_n, y_real + j * sqrt_n, y_imag + j * sqrt_n);
-        //             }
-        //         }  
-        //         // IppStatus status = ippiTranspose_32fc_C1R(
-        //         //     (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
-        //         //     (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
-        //         //     { (int) sqrt_n, (int)  sqrt_n }                            // size of the source matrix
-        //         // );
-        //         // status = ippiTranspose_32fc_C1R(
-        //         //     (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
-        //         //     (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
-        //         //     { (int)  sqrt_n,  (int) sqrt_n }                            // size of the source matrix
-        //         // );          
-        //     });
-        // }
+                for(std::size_t i = 0; i < 2 * (1 + (sqrt_n * sqrt_n < n_samples)); i ++) {
+                    IppStatus status = ippiTranspose_32fc_C1R(
+                        (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
+                        (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
+                        { (int) sqrt_n, (int)  sqrt_n }                            // size of the source matrix
+                    );
+                    status = ippiTranspose_32fc_C1R(
+                        (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
+                        (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
+                        { (int)  sqrt_n,  (int) sqrt_n }                            // size of the source matrix
+                    );
+                    for(std::size_t j = 0; j < sqrt_n; j ++) {
+                        simd_fft_sqr.eval(y_real + j * sqrt_n, y_imag  + j * sqrt_n, y_real + j * sqrt_n, y_imag + j * sqrt_n);
+                    }
+                }  
+                // IppStatus status = ippiTranspose_32fc_C1R(
+                //     (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
+                //     (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
+                //     { (int) sqrt_n, (int)  sqrt_n }                            // size of the source matrix
+                // );
+                // status = ippiTranspose_32fc_C1R(
+                //     (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
+                //     (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
+                //     { (int)  sqrt_n,  (int) sqrt_n }                            // size of the source matrix
+                // );          
+            });
+        }
 
         std::cout << y_real[0] << pDst[0].re << std::endl;
 

@@ -14,7 +14,7 @@ namespace afft
         using operand = Sample;
         static constexpr std::size_t n_samples_per_operand = 1;
         static constexpr std::size_t prefetch_lookahead = 4;
-        static constexpr std::size_t min_partition_len = 256;
+        static constexpr std::size_t min_partition_len = 64;
 
         static inline void load(operand &x, const sample *ptr)
         {
