@@ -45,7 +45,7 @@ Prototype
 ## Not Investigated
 -  It is possible to operate on complex numbers arrays by interleaving and deinterleaving in the first and last steps, respectively. This will also reduce Set-associativity conflicts (as opposed to the offset method mentioned earlier, potentially leading to similar performance gains)
 -  The plan following has a small overhead (for loop containing a switch statement). It is possible to remove this overhead for small ffts by pregenerating/hardcoding the end-to-end FFT plan for each length. I will not be doing that at this time.
--  It is possible that hard codinng the twiddle values (like with OTFFT) could reduce data loading and lead to an increase in performance.
+-  It is possible that hard codinng the twiddle values (like with OTFFT) could reduce loading into data cache and lead to an increase in performance.
 -  Radix-8 or Split radix might squeeze out more performance
   
 
