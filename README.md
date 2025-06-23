@@ -16,8 +16,8 @@ Prototype
 
 ## Implementation
 - Expects different arrays for real and imaginary numbers (for now) (not directly supporting interweaved input, not direction support array or complex numbers)
-- Cooley-Tukey (mixed radix of 2 and 4)
-- Optimized for Fused-Multiply-Add 
+- Stockham for early stages, Cooley-Tukey (mixed radix of 2 and 4) for later stages
+- Use "fast-math" to generate FMA instructions
 - Fast Cache-Oblivious SIMD-enabled bit reversal permutation
 - Decimation in Time
   
@@ -30,24 +30,23 @@ Prototype
   - Radix-8 can save time over a Radix-4 + radix 2 stage, but choosing the next radix gets more complex, plus there is only 1 or 0 radix-stages, so speed up will be limited over the entire algorithm
   - Radix-8 could possibly mean less passes over data, maybe increaing performance further with large FFTs.
   - At max, Split-radix with only 4 real operations per complex sample gives a 5.9% max reduction over radix 4, but is complicated to implement.
-  - With FMA even radix-2 have attractive complexity.
+  - With FMA even radix-2 have attractive computational complexity.
 - Manually Unrolling the main radix-4 and radix-2 loops does not give much speed up.
 - Compiling with Clang gives 5% to 20% speed up over compiling with MSVC or GCC (on Windows, Intel i7-12700)
 - Skipping Bit-reversal in convolution is more performant when not using SIMD, but trickier when using SIMD without deinterleave instructions. Estimated savings of 15% - 30%. 
-- Theoretically, Stockham method means no bit-reversal, but adds interleaving to each stage of the algorithm. Right now, it is not worth changing the entire algorithm to find out. Additionally, Stockham requires multiple variations SIMD interleave operations, (e.g. interweave every other sample, every other two samples, etc....). This could potentially make relying  Stockham less portable, or more complicated.
 -  Index arithmetic with SIMD instructions is NOT performative
 -  Single-pass bitreversal is the fastest. I should aim to minimize the ratio of loads and stores to actual computation and avoid using work pointer
--  Manual loop unrolling doesn't always speed up code. For simplicity, I aim to do 16 interleave operations per loop. And x? math operations per loop
--  Six-stage or Four-stage fft may replace the bit-reversal with at least 1 transpose phase. Since I am not looking at very large datasets for real-time audio processing, I doubt further investigation into this will be worth it.
+-  Manual loop unrolling doesn't always speed up code.
+-  Recursive, Cache-oblivious FFTs works better than iterative at larger sizes.
+-  Six-stage or Four-stage fft may increase performance for n_samples > 2^16. Since I am not looking at very large samples sizes for real-time audio processing, I doubt further investigation into this will be worth it.
 -  Cache-oblivious bit reversal permutation is significantly faster than my previous COBRA implementation on <2^22. After that, COBRA is slightly faster. This might be because the data no longer fits in my L3 cache and COBRA has a more regular access pattern, and/or also doesn't need to load a bit reversal permutation plan.
--  Non-fma is faster than the 6 operation fma trick from Ryg blog.
--  Only use radix-4 or radix-2! radix-4-fma is nearly twice as fast as radix-2-fma, Avoiding loads matters. radix-4-fma is faster than radix-8-fma. radix-4-fma + radix-2-fma is faster than radix-8-fma.
--  It is possible to operate on complex numbers by interleaving and deinterleaving in the first and last steps.  I will not be doing that at this time. 
--  It is possible to improve performance further by combining the bit-reversal-permutation stage with the first butterfly stage to reduce the number of loads and stores. I will not be doing that at this time. 
--  The plan following has a small overhead (for loop containing a switch statement). It is possible to remove this overhead by pregenerating/hardcoding the end-to-end FFT plan for each length. I will not be doing that at this time.
+-  Offsetting the input real, input imag, output real and output imag arrays by different amounts prevents them from overlapping and overloading the cache-associativity. 5 to 20% bonus when data does not fit in L1.
+
+## Not Investigated
+-  It is possible to operate on complex numbers arrays by interleaving and deinterleaving in the first and last steps, respectively. This will also reduce Set-associativity conflicts (as opposed to the offset method mentioned earlier, potentially leading to similar performance gains)
+-  The plan following has a small overhead (for loop containing a switch statement). It is possible to remove this overhead for small ffts by pregenerating/hardcoding the end-to-end FFT plan for each length. I will not be doing that at this time.
+-  It is possible that hard codinng the twiddle values (like with OTFFT) could reduce data loading and lead to an increase in performance.
   
-## Investigating
-- Recursive, Cache-oblivious FFTs
 
 ## Inspiration and lessons
 - [Python Prototype](https://github.com/goldenrockefeller/fft-prototype)
