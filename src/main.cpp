@@ -513,11 +513,11 @@ void do_bench()
         //           { fft_iterative.eval(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
 
 
-        bench.run("AFFToff", [&]()
-            { simd_fft.eval(y_realoff, y_imagoff, x_realoff, x_imagoff); });
-
         bench.run("AFFT", [&]()
                   { simd_fft.eval(y_real, y_imag, x_real, x_imag); });
+
+        bench.run("AFFToff", [&]()
+            { simd_fft.eval(y_realoff, y_imagoff, x_realoff, x_imagoff); });
 
 
 
@@ -540,19 +540,19 @@ void do_bench()
                         { (int)  sqrt_n,  (int) sqrt_n }                            // size of the source matrix
                     );
                     for(std::size_t j = 0; j < sqrt_n; j ++) {
-                        simd_fft_sqr.eval(y_real + j * sqrt_n, y_imag  + j * sqrt_n, y_real + j * sqrt_n, y_imag + j * sqrt_n);
+                        simd_fft_sqr.eval(y_real + j * sqrt_n, y_imag  + j * sqrt_n, x_real + j * sqrt_n, x_imag + j * sqrt_n);
                     }
                 }  
-                // IppStatus status = ippiTranspose_32fc_C1R(
-                //     (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
-                //     (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
-                //     { (int) sqrt_n, (int)  sqrt_n }                            // size of the source matrix
-                // );
-                // status = ippiTranspose_32fc_C1R(
-                //     (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
-                //     (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
-                //     { (int)  sqrt_n,  (int) sqrt_n }                            // size of the source matrix
-                // );          
+                IppStatus status = ippiTranspose_32fc_C1R(
+                    (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
+                    (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
+                    { (int) sqrt_n, (int)  sqrt_n }                            // size of the source matrix
+                );
+                status = ippiTranspose_32fc_C1R(
+                    (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
+                    (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
+                    { (int)  sqrt_n,  (int) sqrt_n }                            // size of the source matrix
+                );          
             });
         }
 
