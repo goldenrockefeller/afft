@@ -75,7 +75,7 @@ namespace afft
                             params.in_indexes,
                             params.subfft_id_start,
                             params.subfft_id_end,
-                            params.log_subtwiddle_len,
+                            params.log_interleave_permute,
                             plan.n_samples(),
                             plan.scaling_factor());
                     }
@@ -84,7 +84,6 @@ namespace afft
                     break;
                 case RadixType::s_radix2:
                     {
-                        
                         auto &params = radix_stage.params.s_r2;
                         
                         do_s_radix2_stage<Spec, Rescaling, false>(
@@ -97,7 +96,7 @@ namespace afft
                             params.in_indexes,
                             params.subfft_id_start,
                             params.subfft_id_end,
-                            params.log_subtwiddle_len,
+                            params.log_interleave_permute,
                             plan.n_samples(),
                             plan.scaling_factor());
                     }
@@ -139,7 +138,7 @@ namespace afft
                             params.in_indexes,
                             params.subfft_id_start,
                             params.subfft_id_end,
-                            params.log_subtwiddle_len,
+                            params.log_interleave_permute,
                             plan.n_samples(),
                             plan.scaling_factor());
                     }
@@ -170,7 +169,7 @@ namespace afft
                             params.in_indexes,
                             params.subfft_id_start,
                             params.subfft_id_end,
-                            params.log_subtwiddle_len,
+                            params.log_interleave_permute,
                             plan.n_samples(),
                             plan.scaling_factor());
                     }

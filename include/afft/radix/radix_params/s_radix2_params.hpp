@@ -2,6 +2,7 @@
 #define AFFT_S_RADIX2_PARAMS_HPP
 
 #include <cstddef>
+#include "afft/radix/radix_params/s_radix4_params.hpp"
 
 namespace afft{
     template <typename Spec>
@@ -11,7 +12,7 @@ namespace afft{
         std::size_t *in_indexes;
         std::size_t subfft_id_start;
         std::size_t subfft_id_end;
-        std::size_t log_subtwiddle_len;
+        LogInterleavePermute log_interleave_permute;
         std::size_t output_id;
         std::size_t input_id;
     };

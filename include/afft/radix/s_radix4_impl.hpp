@@ -5,7 +5,7 @@
 
 namespace afft
 {
-    template <typename Spec, bool Rescaling, bool HasTwiddles, std::size_t LogInterleaveFactor>
+    template <typename Spec, bool Rescaling, bool HasTwiddles, std::size_t LogInterleaveFactor, bool Permuting>
     inline void do_s_radix4_stage_impl(
         typename Spec::sample *out_real,
         typename Spec::sample *out_imag,
@@ -87,7 +87,7 @@ namespace afft
         auto n_samples_4 = n_samples / 4;
         auto n_samples_3_4 = 3 * n_samples / 4;
 
-        if ((1 << LogInterleaveFactor) < Spec::n_samples_per_operand) {
+        if (!Permuting) {
             std::size_t in_a_offset = subfft_id_start * Spec::n_samples_per_operand;
             std::size_t in_b_offset = subfft_id_start * Spec::n_samples_per_operand + n_samples_2;
             std::size_t in_c_offset = subfft_id_start * Spec::n_samples_per_operand + n_samples_4;
@@ -115,10 +115,19 @@ namespace afft
             out_imag_c = out_imag + out_c_offset;
             out_real_d = out_real + out_d_offset;
             out_imag_d = out_imag + out_d_offset;
-        } else {
-            // Do Nothing
         }
 
+        auto inout_pos = 4 * subfft_id_start;
+
+        auto in_pos_a = in_indexes + inout_pos;
+        auto in_pos_b = in_indexes + inout_pos + 1;
+        auto in_pos_c = in_indexes + inout_pos + 2;
+        auto in_pos_d = in_indexes + inout_pos + 3;
+
+        auto out_pos_a = out_indexes + inout_pos;
+        auto out_pos_b = out_indexes + inout_pos + 1;
+        auto out_pos_c = out_indexes + inout_pos + 2;
+        auto out_pos_d = out_indexes + inout_pos + 3;
 
         for (
             std::size_t subfft_id = subfft_id_start;
@@ -128,22 +137,25 @@ namespace afft
             std::size_t out_index; 
             std::size_t in_index; 
 
-            if ((1 << LogInterleaveFactor) < Spec::n_samples_per_operand) {
-                // Do Nothing
-            } else {
-                out_index = out_indexes[subfft_id];
-                in_index = in_indexes[subfft_id];
+            if (Permuting) {
+                std::size_t in_a_offset = *in_pos_a;
+                std::size_t in_b_offset = *in_pos_b;
+                std::size_t in_c_offset = *in_pos_c;
+                std::size_t in_d_offset = *in_pos_d;
 
-                std::size_t in_a_offset = in_index * Spec::n_samples_per_operand;
-                std::size_t in_b_offset = in_index * Spec::n_samples_per_operand + n_samples_2;
-                std::size_t in_c_offset = in_index * Spec::n_samples_per_operand + n_samples_4;
-                std::size_t in_d_offset = in_index * Spec::n_samples_per_operand + n_samples_3_4;
 
-                std::size_t out_a_offset = out_index * box_size;
-                std::size_t out_b_offset = out_index * box_size + Spec::n_samples_per_operand;
-                std::size_t out_c_offset = out_index * box_size + 2 * Spec::n_samples_per_operand;
-                std::size_t out_d_offset = out_index * box_size + 3 * Spec::n_samples_per_operand;
+                std::size_t out_a_offset = *out_pos_a;
+                std::size_t out_b_offset = *out_pos_b;
+                std::size_t out_c_offset = *out_pos_c;
+                std::size_t out_d_offset = *out_pos_d;
+
                 
+                // out_index = out_indexes[subfft_id];
+                // std::size_t out_a_offset = out_index * box_size;
+                // std::size_t out_b_offset = out_index * box_size + Spec::n_samples_per_operand;
+                // std::size_t out_c_offset = out_index * box_size + 2 * Spec::n_samples_per_operand;
+                // std::size_t out_d_offset = out_index * box_size + 3 * Spec::n_samples_per_operand;
+
                 in_real_a = in_real + in_a_offset;
                 in_imag_a = in_imag + in_a_offset;
                 in_real_b = in_real + in_b_offset;
@@ -161,63 +173,17 @@ namespace afft
                 out_imag_c = out_imag + out_c_offset;
                 out_real_d = out_real + out_d_offset;
                 out_imag_d = out_imag + out_d_offset;
+                
+                in_pos_a += 4;
+                in_pos_b += 4;
+                in_pos_c += 4;
+                in_pos_d += 4;
+
+                out_pos_a += 4;
+                out_pos_b += 4;
+                out_pos_c += 4;
+                out_pos_d += 4;                
             }
-
-            // PREFETCH
-
-            if ((1 << LogInterleaveFactor) < Spec::n_samples_per_operand) {
-                // Spec::prefetch(in_real_a + Spec::n_samples_per_operand * Spec::prefetch_lookahead);
-                // Spec::prefetch(in_imag_a + Spec::n_samples_per_operand * Spec::prefetch_lookahead);
-                // Spec::prefetch(in_real_b + Spec::n_samples_per_operand * Spec::prefetch_lookahead);
-                // Spec::prefetch(in_imag_b + Spec::n_samples_per_operand * Spec::prefetch_lookahead);
-                // Spec::prefetch(in_real_c + Spec::n_samples_per_operand * Spec::prefetch_lookahead);
-                // Spec::prefetch(in_imag_c + Spec::n_samples_per_operand * Spec::prefetch_lookahead);
-                // Spec::prefetch(in_real_d + Spec::n_samples_per_operand * Spec::prefetch_lookahead);
-                // Spec::prefetch(in_imag_d + Spec::n_samples_per_operand * Spec::prefetch_lookahead);
-
-                // Spec::prefetch(out_real_a + box_size * Spec::prefetch_lookahead);
-                // Spec::prefetch(out_imag_a + box_size * Spec::prefetch_lookahead);
-                // Spec::prefetch(out_real_b + box_size * Spec::prefetch_lookahead);
-                // Spec::prefetch(out_imag_b + box_size * Spec::prefetch_lookahead);
-                // Spec::prefetch(out_real_c + box_size * Spec::prefetch_lookahead);
-                // Spec::prefetch(out_imag_c + box_size * Spec::prefetch_lookahead);
-                // Spec::prefetch(out_real_d + box_size * Spec::prefetch_lookahead);
-                // Spec::prefetch(out_imag_d + box_size * Spec::prefetch_lookahead);
-            } else {
-                // out_index = out_indexes[subfft_id + Spec::prefetch_lookahead];
-                // in_index = in_indexes[subfft_id + Spec::prefetch_lookahead];
-            
-                // std::size_t in_a_offset = in_index * Spec::n_samples_per_operand;
-                // std::size_t in_b_offset = in_index * Spec::n_samples_per_operand + n_samples_2;
-                // std::size_t in_c_offset = in_index * Spec::n_samples_per_operand + n_samples_4;
-                // std::size_t in_d_offset = in_index * Spec::n_samples_per_operand + n_samples_3_4;
-
-                // std::size_t out_a_offset = out_index * box_size;
-                // std::size_t out_b_offset = out_index * box_size + Spec::n_samples_per_operand;
-                // std::size_t out_c_offset = out_index * box_size + 2 * Spec::n_samples_per_operand;
-                // std::size_t out_d_offset = out_index * box_size + 3 * Spec::n_samples_per_operand;
-
-                // Spec::prefetch(in_real_a + in_a_offset);
-                // Spec::prefetch(in_imag_a + in_a_offset);
-                // Spec::prefetch(in_real_b + in_b_offset);
-                // Spec::prefetch(in_imag_b + in_b_offset);
-                // Spec::prefetch(in_real_c + in_c_offset);
-                // Spec::prefetch(in_imag_c + in_c_offset);
-                // Spec::prefetch(in_real_d + in_d_offset);
-                // Spec::prefetch(in_imag_d + in_d_offset);
-
-                // Spec::prefetch(out_real_a + out_a_offset);
-                // Spec::prefetch(out_imag_a + out_a_offset);
-                // Spec::prefetch(out_real_b + out_b_offset);
-                // Spec::prefetch(out_imag_b + out_b_offset);
-                // Spec::prefetch(out_real_c + out_c_offset);
-                // Spec::prefetch(out_imag_c + out_c_offset);
-                // Spec::prefetch(out_real_d + out_d_offset);
-                // Spec::prefetch(out_imag_d + out_d_offset);
-            }
-
-            
-            
 
             // LOAD
             Spec::load(alpha_real_a_op, in_real_a);
@@ -287,7 +253,7 @@ namespace afft
             alpha_imag_c_op = beta_imag_a_op - beta_imag_c_op;
             alpha_imag_d_op = beta_imag_b_op + beta_real_d_op;
 
-            if ((1 << LogInterleaveFactor) < Spec::n_samples_per_operand) {
+            if (n_samples_per_operand > 1) {
                 Spec::template interleave4<LogInterleaveFactor>(
                     beta_real_a_op, 
                     beta_real_b_op, 
@@ -333,7 +299,7 @@ namespace afft
 
             // UPDATE
 
-            if ((1 << LogInterleaveFactor) < Spec::n_samples_per_operand) {
+            if (!Permuting) {
                 in_real_a += Spec::n_samples_per_operand;
                 in_imag_a += Spec::n_samples_per_operand;
                 in_real_b += Spec::n_samples_per_operand;
@@ -351,11 +317,7 @@ namespace afft
                 out_imag_c += box_size;
                 out_real_d += box_size;
                 out_imag_d += box_size;
-            } else {
-                // Do Nothing
-            }
-
-            
+            }             
         }
     }
 }

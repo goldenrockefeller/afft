@@ -23,9 +23,8 @@ namespace afft
         std::size_t n_samples_;
         std::vector<RadixStage<Spec>> radix_stages_;
         std::vector<typename Spec::sample, Allocator> twiddles_;
-        std::vector<std::size_t> out_indexes;
-        std::vector<std::size_t> in_indexes;
-        std::vector<std::size_t> inout_indexes;
+        std::vector<std::size_t> out_indexes_;
+        std::vector<std::size_t> in_indexes_;
         typename Spec::sample scaling_factor_;
 
     public:
@@ -80,28 +79,6 @@ namespace afft
             twiddles_.resize(2 * n_samples + 2 * n_samples_per_operand * 6 * (n_samples_per_operand + 1));
             std::size_t tw_pos = 0;
 
-            std::size_t indexes_len;
-            if (n_samples == 2 * n_samples_per_operand) {
-                indexes_len = n_samples / n_samples_per_operand / 2;
-            } 
-            else {
-                indexes_len = n_samples / n_samples_per_operand / 4;
-            }
-
-            for (std::size_t i = 0; i < indexes_len; i++) {
-                inout_indexes.push_back(i);
-            }
-
-            auto pair_indexes = pim::ordered_bit_rev_indexes(indexes_len);
-            in_indexes = pair_indexes.first;
-            out_indexes = pair_indexes.second;
-
-            for (std::size_t i = 0; i < prefetch_lookahead; i++) {
-                inout_indexes.push_back(indexes_len);
-                in_indexes.push_back(indexes_len);
-                out_indexes.push_back(indexes_len);
-            }
-
             std::size_t subtwiddle_len = 1;
             std::size_t log_subtwiddle_len = 0;
 
@@ -113,16 +90,14 @@ namespace afft
 
                 while (subtwiddle_len < n_samples_per_operand) {
                     auto stage_twiddles = tw::s_radix2_twiddles<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
-
+                    
                     RadixStage<Spec> radix_stage_;
                     radix_stage_.type = RadixType::s_radix2;
                     auto &params = radix_stage_.params.s_r2;
                     params.twiddles = twiddles_.data() + tw_pos;
-                    params.out_indexes = inout_indexes.data();
-                    params.in_indexes = inout_indexes.data();
                     params.subfft_id_start = 0;
                     params.subfft_id_end = n_samples / n_samples_per_operand / 2;
-                    params.log_subtwiddle_len = log_subtwiddle_len;
+                    
                     params.input_id = input_id;
                     params.output_id = output_id;
 
@@ -131,147 +106,175 @@ namespace afft
                         tw_pos++;
                     }
 
-                    input_id = output_id;
-                    output_id ^= 1;
+                    if (2 * subtwiddle_len < n_samples_per_operand) {
+                        params.log_interleave_permute = as_log_interleave_permute(log_subtwiddle_len, false);
+                        input_id = output_id;
+                        output_id ^= 1;
+                    }
+                    else {
+                        params.log_interleave_permute = as_log_interleave_permute(log_subtwiddle_len, true);
+                        auto bit_revs_ = pim::bit_rev_indexes_for_op(n_samples, 2, n_samples_per_operand);
+                        in_indexes_ = bit_revs_.first ;
+                        out_indexes_ =  bit_revs_.second;
+                        params.out_indexes = out_indexes_.data();
+                        params.in_indexes = in_indexes_.data();
+                    }
 
+                    
                     radix_stages_.push_back(radix_stage_);
                     subtwiddle_len *= 2;
                     log_subtwiddle_len += 1;
                     n_s_radix_stages_ += 1;
 
                 }
-                // Stockham x2 Permute
-                auto stage_twiddles = tw::s_radix2_twiddles<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
 
-                RadixStage<Spec> radix_stage_;
-                radix_stage_.type = RadixType::s_radix2;
-                auto &params = radix_stage_.params.s_r2;
-                params.twiddles = twiddles_.data() + tw_pos;
-                params.out_indexes = out_indexes.data();
-                params.in_indexes = in_indexes.data();
-                params.subfft_id_start = 0;
-                params.subfft_id_end = n_samples / n_samples_per_operand / 2;
-                params.log_subtwiddle_len = log_subtwiddle_len;
-                params.input_id = input_id;
-                params.output_id = output_id;
+                if (n_samples_per_operand == 1)
+                {
+                    // Stockham x2 Permute
+                    auto stage_twiddles = tw::s_radix2_twiddles<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
 
-                for (auto twiddle : stage_twiddles) {
-                    twiddles_[tw_pos] = twiddle;
-                    tw_pos++;
-                }
+                    RadixStage<Spec> radix_stage_;
+                    radix_stage_.type = RadixType::s_radix2;
+                    auto &params = radix_stage_.params.s_r2;
+                    params.twiddles = twiddles_.data() + tw_pos;
+                    params.subfft_id_start = 0;
+                    params.subfft_id_end = n_samples / n_samples_per_operand / 2;
+                    params.log_interleave_permute = as_log_interleave_permute(log_subtwiddle_len, true);
+                    params.input_id = input_id;
+                    params.output_id = output_id;
 
-                radix_stages_.push_back(radix_stage_);
-                subtwiddle_len *= 2;
-                log_subtwiddle_len += 1;
-                n_s_radix_stages_ += 1;
-
-                if (output_id == 0) { // the last output should not be the buffer
-                    for (auto &stage : radix_stages_) {
-                        if (stage.type ==  RadixType::s_radix4) {
-                            auto &params = stage.params.s_r4;
-                            params.input_id ^= 1;
-                            params.output_id ^= 1;
-                        }
-
-                        if (stage.type ==  RadixType::s_radix2) {
-                            auto &params = stage.params.s_r2;
-                            params.input_id ^= 1;
-                            params.output_id ^= 1;
-                        }
+                    for (auto twiddle : stage_twiddles) {
+                        twiddles_[tw_pos] = twiddle;
+                        tw_pos++;
                     }
+
+                    auto bit_revs_ = pim::bit_rev_indexes_for_1(n_samples, 2);
+                    in_indexes_ = bit_revs_.first ;
+                    out_indexes_ =  bit_revs_.second;
+                    params.out_indexes = out_indexes_.data();
+                    params.in_indexes = in_indexes_.data();
+
+                    radix_stages_.push_back(radix_stage_);
+                    subtwiddle_len *= 2;
+                    log_subtwiddle_len += 1;
+                    n_s_radix_stages_ += 1;
+                }
+            }
+
+            else{
+                // Stockham x4 Interleave
+                while (subtwiddle_len * 4 <= n_samples_per_operand) {
+                    auto stage_twiddles = tw::s_radix4_twiddles<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
+
+                    RadixStage<Spec> radix_stage_;
+                    radix_stage_.type = RadixType::s_radix4;
+                    auto &params = radix_stage_.params.s_r4;
+                    params.twiddles = twiddles_.data() + tw_pos;
+                    params.subfft_id_start = 0;
+                    params.subfft_id_end = n_samples / n_samples_per_operand / 4;
+                    params.input_id = input_id;
+                    params.output_id = output_id;
+
+                    if (4 * subtwiddle_len < n_samples_per_operand) {
+                        params.log_interleave_permute = as_log_interleave_permute(log_subtwiddle_len, false);
+                        input_id = output_id;
+                        output_id ^= 1;
+                    }
+                    else {
+                        params.log_interleave_permute = as_log_interleave_permute(log_subtwiddle_len, true);
+                        auto bit_revs_ = pim::bit_rev_indexes_for_op(n_samples, 4, n_samples_per_operand);
+                        in_indexes_ =  bit_revs_.first;
+                        out_indexes_ = bit_revs_.second;
+                        params.out_indexes = out_indexes_.data();
+                        params.in_indexes = in_indexes_.data();
+                    }
+
+                    for (auto twiddle : stage_twiddles) {
+                        twiddles_[tw_pos] = twiddle;
+                        tw_pos++;
+                    }
+
+                    radix_stages_.push_back(radix_stage_);
+                    subtwiddle_len *= 4;
+                    log_subtwiddle_len += 2;
+                    n_s_radix_stages_ += 1;
                 }
 
-                return;
-            }
+                // Stockham x2 Interleave
+                if (subtwiddle_len < n_samples_per_operand) {
+
+                    auto stage_twiddles = tw::s_radix2_twiddles<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
+                    
+                    RadixStage<Spec> radix_stage_;
+                    radix_stage_.type = RadixType::s_radix2;
+                    auto &params = radix_stage_.params.s_r2;
+                    params.twiddles = twiddles_.data() + tw_pos;
+                    params.subfft_id_start = 0;
+                    params.subfft_id_end = n_samples / n_samples_per_operand / 2;
+                    params.input_id = input_id;
+                    params.output_id = output_id;
+
+                    for (auto twiddle : stage_twiddles) {
+                        twiddles_[tw_pos] = twiddle;
+                        tw_pos++;
+                    }
+
+                    if (2 * subtwiddle_len < n_samples_per_operand) {
+                        params.log_interleave_permute = as_log_interleave_permute(log_subtwiddle_len, false);
+                        input_id = output_id;
+                        output_id ^= 1;
+                    }
+                    else {
+                        params.log_interleave_permute = as_log_interleave_permute(log_subtwiddle_len, true);
+                        auto bit_revs_ = pim::bit_rev_indexes_for_op(n_samples, 2, n_samples_per_operand);
+                        in_indexes_  =  bit_revs_.first;
+                        out_indexes_ = bit_revs_.second;
+                        params.out_indexes = out_indexes_.data();
+                        params.in_indexes = in_indexes_.data();
+                    }
 
 
-            // Stockham x4 Interleave
-            while (subtwiddle_len * 4 <= n_samples_per_operand) {
-                auto stage_twiddles = tw::s_radix4_twiddles<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
 
-                RadixStage<Spec> radix_stage_;
-                radix_stage_.type = RadixType::s_radix4;
-                auto &params = radix_stage_.params.s_r4;
-                params.twiddles = twiddles_.data() + tw_pos;
-                params.out_indexes = inout_indexes.data();
-                params.in_indexes = inout_indexes.data();
-                params.subfft_id_start = 0;
-                params.subfft_id_end = n_samples / n_samples_per_operand / 4;
-                params.log_subtwiddle_len = log_subtwiddle_len;
-                params.input_id = input_id;
-                params.output_id = output_id;
-
-                for (auto twiddle : stage_twiddles) {
-                    twiddles_[tw_pos] = twiddle;
-                    tw_pos++;
+                    radix_stages_.push_back(radix_stage_);
+                    subtwiddle_len *= 2;
+                    log_subtwiddle_len += 1;
+                    n_s_radix_stages_ += 1;
                 }
 
-                // input_id = output_id;
-                // output_id ^= 1;
+                if (n_samples_per_operand == 1) {
+                    // Stockham x4 Permute
+                    auto stage_twiddles = tw::s_radix4_twiddles<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
 
-                radix_stages_.push_back(radix_stage_);
-                subtwiddle_len *= 4;
-                log_subtwiddle_len += 2;
-                n_s_radix_stages_ += 1;
-            }
+                    RadixStage<Spec> radix_stage_;
+                    radix_stage_.type = RadixType::s_radix4;
+                    auto &params = radix_stage_.params.s_r4;
+                    params.twiddles = twiddles_.data() + tw_pos;
+                    params.log_interleave_permute = as_log_interleave_permute(log_subtwiddle_len, true);
+                    params.subfft_id_start = 0;
+                    params.subfft_id_end = n_samples / n_samples_per_operand / 4;
 
-            // Stockham x2 Interleave
-            if (subtwiddle_len < n_samples_per_operand) {
+                    params.input_id = input_id;
+                    params.output_id = output_id;
 
-                auto stage_twiddles = tw::s_radix2_twiddles<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
+                    auto bit_revs_ = pim::bit_rev_indexes_for_1(n_samples, 4);
+                    in_indexes_ =  bit_revs_.first;
+                    out_indexes_ = bit_revs_.second;
+                    params.out_indexes = out_indexes_.data();
+                    params.in_indexes = in_indexes_.data();
 
-                
-                RadixStage<Spec> radix_stage_;
-                radix_stage_.type = RadixType::s_radix2;
-                auto &params = radix_stage_.params.s_r2;
-                params.twiddles = twiddles_.data() + tw_pos;
-                params.out_indexes = inout_indexes.data();
-                params.in_indexes = inout_indexes.data();
-                params.subfft_id_start = 0;
-                params.subfft_id_end = n_samples / n_samples_per_operand / 2;
-                params.log_subtwiddle_len = log_subtwiddle_len;
-                params.input_id = input_id;
-                params.output_id = output_id;
+                    
 
-                for (auto twiddle : stage_twiddles) {
-                    twiddles_[tw_pos] = twiddle;
-                    tw_pos++;
+                    for (auto twiddle : stage_twiddles) {
+                        twiddles_[tw_pos] = twiddle;
+                        tw_pos++;
+                    }
+
+                    radix_stages_.push_back(radix_stage_);
+                    subtwiddle_len *= 4;
+                    log_subtwiddle_len += 2;
+                    n_s_radix_stages_ += 1;
                 }
-
-                input_id = output_id;
-                output_id ^= 1;
-
-                radix_stages_.push_back(radix_stage_);
-                subtwiddle_len *= 2;
-                log_subtwiddle_len += 1;
-                n_s_radix_stages_ += 1;
-            }
-
-            // Stockham x4 Permute
-            auto stage_twiddles = tw::s_radix4_twiddles<Spec, Allocator>(subtwiddle_len, n_samples_per_operand);
-
-            RadixStage<Spec> radix_stage_;
-            radix_stage_.type = RadixType::s_radix4;
-            auto &params = radix_stage_.params.s_r4;
-            params.twiddles = twiddles_.data() + tw_pos;
-            params.out_indexes = out_indexes.data();
-            params.in_indexes = in_indexes.data();
-            params.subfft_id_start = 0;
-            params.subfft_id_end = n_samples / n_samples_per_operand / 4;
-            params.log_subtwiddle_len = log_subtwiddle_len;
-
-            params.input_id = input_id;
-            params.output_id = output_id;
-
-            for (auto twiddle : stage_twiddles) {
-                twiddles_[tw_pos] = twiddle;
-                tw_pos++;
-            }
-
-            // radix_stages_.push_back(radix_stage_);
-            // subtwiddle_len *= 4;
-            // log_subtwiddle_len += 2;
-            // n_s_radix_stages_ += 1;
+            }    
 
             if (output_id == 0) { // the last output should not be the buffer
                 for (auto &stage : radix_stages_) {

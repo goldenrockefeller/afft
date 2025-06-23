@@ -200,29 +200,124 @@ namespace afft
             return destinations;
         }
 
-        std::pair<std::vector<std::size_t>, std::vector<std::size_t>> ordered_bit_rev_indexes(std::size_t n_indexes){
+        std::pair<std::vector<std::size_t>, std::vector<std::size_t>> ordered_bit_rev_indexes(std::size_t n_indexes, std::size_t base_size){
             auto mats = indexes_as_mats(n_indexes);
 
             std::vector<std::size_t> in_indexes;
             std::vector<std::size_t> out_indexes;
 
-            for (auto mat : mats){
+            for (auto mat : mats) {
                 mat = bit_rev_permute_rows(mat);
-                auto indexes = plan_transpose_diagonal_indexes(mat, 1);
-                for (auto pair_indexes : indexes) {
-                    if (pair_indexes[0][0] == pair_indexes[1][0]) {
-                        in_indexes.push_back(pair_indexes[0][0]);
-                        out_indexes.push_back(pair_indexes[0][0]);
-                    }
-                    else
-                    {
-                        in_indexes.push_back(pair_indexes[1][0]);
-                        out_indexes.push_back(pair_indexes[0][0]);
-                        in_indexes.push_back(pair_indexes[0][0]);
-                        out_indexes.push_back(pair_indexes[1][0]);
+                auto indexes = plan_transpose_diagonal_indexes(mat, base_size);
+
+                for (const auto& pair_indexes : indexes) {
+                    for (std::size_t i = 0; i < base_size; ++i) {
+                        if (pair_indexes[0][0] == pair_indexes[1][0]) {
+                            for (std::size_t j = 0; j < base_size; ++j) {
+                                in_indexes.push_back(pair_indexes[0][i] + j);
+                                out_indexes.push_back(pair_indexes[0][j] + i);
+                            }
+                        } else {
+                            for (std::size_t j = 0; j < base_size; ++j) {
+                                in_indexes.push_back(pair_indexes[1][i] + j);
+                                out_indexes.push_back(pair_indexes[0][j] + i);
+                            }
+                            for (std::size_t j = 0; j < base_size; ++j) {
+                                in_indexes.push_back(pair_indexes[0][i] + j);
+                                out_indexes.push_back(pair_indexes[1][j] + i);
+                            }
+                        }
                     }
                 }
             }
+
+            return {in_indexes, out_indexes};
+        }
+
+        std::pair<std::vector<std::size_t>, std::vector<std::size_t>> bit_rev_indexes_for_1(std::size_t n_samples, std::size_t radix_size) {
+            auto bit_revs_ = ordered_bit_rev_indexes(n_samples / radix_size, 1);
+            auto bit_rev_in =  bit_revs_.first;
+            auto bit_rev_out = bit_revs_.second;
+
+            std::vector<std::size_t> in_indexes;
+            std::vector<std::size_t> out_indexes;
+
+            for (std::size_t box_id = 0; box_id < bit_rev_in.size(); ++box_id) {
+                if (radix_size >= 2) {
+                    in_indexes.push_back(bit_rev_in[box_id]);
+                    in_indexes.push_back(bit_rev_in[box_id] + n_samples / 2);
+
+                    out_indexes.push_back(radix_size * bit_rev_out[box_id]);
+                    out_indexes.push_back(radix_size * bit_rev_out[box_id] + 1);
+                }
+
+                if (radix_size >= 4) {
+                    in_indexes.push_back(bit_rev_in[box_id] + n_samples / 4);
+                    in_indexes.push_back(bit_rev_in[box_id] + 3 * n_samples / 4);
+
+                    out_indexes.push_back(radix_size * bit_rev_out[box_id] + 2);
+                    out_indexes.push_back(radix_size * bit_rev_out[box_id] + 3);
+                }
+            }
+
+            return {in_indexes, out_indexes};
+        }
+
+        std::pair<std::vector<std::size_t>, std::vector<std::size_t>> 
+        bit_rev_indexes_for_op(std::size_t n_samples, std::size_t radix_size, std::size_t op_size) {
+            std::size_t n_operands = n_samples / op_size;
+            auto seq_from_out = bit_reversed_indexes(n_operands);
+
+            std::vector<std::size_t> in_indexes;
+            std::vector<std::size_t> out_indexes;
+
+            if (n_operands < 16) {
+                for (std::size_t subfft_id = 0; subfft_id < n_operands / radix_size; ++subfft_id) {
+                    if (radix_size >= 2) {
+                        in_indexes.push_back(subfft_id * op_size);
+                        in_indexes.push_back(subfft_id * op_size + n_samples / 2);
+
+                        out_indexes.push_back(seq_from_out[subfft_id * radix_size] * op_size);
+                        out_indexes.push_back(seq_from_out[subfft_id * radix_size + 1] * op_size);
+                    }
+
+                    if (radix_size >= 4) {
+                        in_indexes.push_back(subfft_id * op_size + n_samples / 4);
+                        in_indexes.push_back(subfft_id * op_size + 3 * n_samples / 4);
+
+                        out_indexes.push_back(seq_from_out[subfft_id * radix_size + 2] * op_size);
+                        out_indexes.push_back(seq_from_out[subfft_id * radix_size + 3] * op_size);
+                    }
+                }
+                return {in_indexes, out_indexes};
+            }
+
+            auto bit_revs_ = ordered_bit_rev_indexes(n_operands, radix_size);
+            auto bit_rev_in =  bit_revs_.first;
+            auto bit_rev_out = bit_revs_.second;
+
+            std::vector<std::size_t> in_from_seq;
+
+            for (std::size_t subfft_id = 0; subfft_id < n_operands / radix_size; ++subfft_id) {
+                if (radix_size >= 2) {
+                    in_from_seq.push_back(subfft_id);
+                    in_from_seq.push_back(subfft_id + n_operands / 2);
+                }
+
+                if (radix_size >= 4) {
+                    in_from_seq.push_back(subfft_id + n_operands / 4);
+                    in_from_seq.push_back(subfft_id + 3 * n_operands / 4);
+                }
+            }
+
+            for (std::size_t out_id : bit_rev_out) {
+                std::size_t seq_id = seq_from_out[out_id];
+                std::size_t in_id = in_from_seq[seq_id];
+
+                out_indexes.push_back(out_id * op_size);
+                in_indexes.push_back(in_id * op_size);
+            }
+
             return {in_indexes, out_indexes};
         }
     }

@@ -282,7 +282,7 @@ void check_fft_double2sse()
 {
     cout << "check_fft_double2sse" << endl;
     std::vector<std::size_t> trials;
-    for (std::size_t i = 1; i < 6; i++)
+    for (std::size_t i = 1; i < 7; i++)
     {
         trials.push_back(1 << i);
     }
@@ -401,7 +401,7 @@ void do_bench()
 {
     cout << "do_bench: " << endl;
     std::vector<std::size_t> trials;
-    for (std::size_t i = 1; i < 18; i++)
+    for (std::size_t i = 1; i < 19; i++)
     {
         trials.push_back(1 << i);
     }
@@ -424,13 +424,15 @@ void do_bench()
         // Allocate complex buffers
         Ipp64fc *pSrc = ippsMalloc_64fc(n_samples);
         Ipp64fc *pDst = ippsMalloc_64fc(n_samples);
-        std::vector<double, xsimd::aligned_allocator<double, 1024>> data(4 * n_samples + 128 * 4);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> data(4 * n_samples + 256 * 6);
         auto x_real = data.data();
         auto y_real = data.data() + n_samples;
         auto x_imag = data.data() + 2 * n_samples;
         auto y_imag = data.data() + 3 * n_samples;
-        auto x_imag128 = data.data() + 2 * n_samples + 128;
-        auto y_imag128 = data.data() + 3 * n_samples + 128;
+        auto x_realoff = data.data();
+        auto y_realoff = data.data() + n_samples + 256;
+        auto x_imagoff = data.data() + 2 * n_samples + 128;
+        auto y_imagoff = data.data() + 3 * n_samples + 128 * 3;
 
         // Query to get buffer sizes
         int sizeFFTSpec_Fast, sizeFFTInitBuf_Fast, sizeFFTWorkBuf_Fast;
@@ -511,8 +513,8 @@ void do_bench()
         //           { fft_iterative.eval(y_real.data(), y_imag.data(), x_real.data(), x_imag.data()); });
 
 
-        bench.run("AFFT128", [&]()
-            { simd_fft.eval(y_real, y_imag128, x_real, x_imag128); });
+        bench.run("AFFToff", [&]()
+            { simd_fft.eval(y_realoff, y_imagoff, x_realoff, x_imagoff); });
 
         bench.run("AFFT", [&]()
                   { simd_fft.eval(y_real, y_imag, x_real, x_imag); });
