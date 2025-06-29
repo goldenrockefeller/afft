@@ -50,8 +50,6 @@ Prototype
   
 
 ## Inspiration and lessons
-- [Python Prototype](https://github.com/goldenrockefeller/fft-prototype)
-  - Personal python project for putting the lessons together and testing quickly for correctness
 - [PFFFT](https://bitbucket.org/jpommier/pffft/src/master/) and [Github Repo](https://github.com/marton78/pffft)
   - My initial understand of how fast FFTs work
   - Skip bit reversal reordering stage for convolution
