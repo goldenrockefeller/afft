@@ -27,14 +27,25 @@ namespace afft
             return plan_;
         }
 
+        const std::size_t &log_n_samples_per_operand() const
+        {
+            return plan_.log_n_samples_per_operand();
+        }
+
+        const std::size_t &n_samples() const
+        {
+            return plan_.n_samples();
+        }
+
+
         template <bool Rescaling = false>
         static inline void eval(
             typename Spec::sample *out_real,
             typename Spec::sample *out_imag,
             const typename Spec::sample *in_real,
             const typename Spec::sample *in_imag,
-            sample *buf,
-            const ButterflyPlan<sample_spec, Allocator> &plan)
+            const ButterflyPlan<sample_spec, Allocator> &plan,
+            sample *buf)
         {
             switch (plan.log_n_samples_per_operand())
             { //
@@ -44,8 +55,8 @@ namespace afft
                     out_imag,
                     in_real,
                     in_imag,
-                    buf,
-                    plan);
+                    plan,
+                    buf);
                 break;
             case 1:
                 ButterflyImpl<typename BoundedSpec<Spec, 1>::spec, Allocator>::template eval<Rescaling>(
@@ -53,8 +64,8 @@ namespace afft
                     out_imag,
                     in_real,
                     in_imag,
-                    buf,
-                    plan);
+                    plan,
+                    buf);
                 break;
             case 2:
                 ButterflyImpl<typename BoundedSpec<Spec, 2>::spec, Allocator>::template eval<Rescaling>(
@@ -62,8 +73,8 @@ namespace afft
                     out_imag,
                     in_real,
                     in_imag,
-                    buf,
-                    plan);
+                    plan,
+                    buf);
                 break;
             case 3:
                 ButterflyImpl<typename BoundedSpec<Spec, 3>::spec, Allocator>::template eval<Rescaling>(
@@ -71,8 +82,8 @@ namespace afft
                     out_imag,
                     in_real,
                     in_imag,
-                    buf,
-                    plan);
+                    plan,
+                    buf);
                 break;
             case 4:
                 ButterflyImpl<typename BoundedSpec<Spec, 4>::spec, Allocator>::template eval<Rescaling>(
@@ -80,8 +91,8 @@ namespace afft
                     out_imag,
                     in_real,
                     in_imag,
-                    buf,
-                    plan);
+                    plan,
+                    buf);
                 break;
             case 5:
                 ButterflyImpl<typename BoundedSpec<Spec, 5>::spec, Allocator>::template eval<Rescaling>(
@@ -89,8 +100,8 @@ namespace afft
                     out_imag,
                     in_real,
                     in_imag,
-                    buf,
-                    plan);
+                    plan,
+                    buf);
                 break;
             case 6:
                 ButterflyImpl<typename BoundedSpec<Spec, 6>::spec, Allocator>::template eval<Rescaling>(
@@ -98,8 +109,8 @@ namespace afft
                     out_imag,
                     in_real,
                     in_imag,
-                    buf,
-                    plan);
+                    plan,
+                    buf);
                 break;
             case 7:
                 ButterflyImpl<typename BoundedSpec<Spec, 7>::spec, Allocator>::template eval<Rescaling>(
@@ -107,8 +118,8 @@ namespace afft
                     out_imag,
                     in_real,
                     in_imag,
-                    buf,
-                    plan);
+                    plan,
+                    buf);
                 break;
             case 8: // Maximum support number of samples per operand is 256!
                 ButterflyImpl<typename BoundedSpec<Spec, 8>::spec, Allocator>::template eval<Rescaling>(
@@ -116,8 +127,8 @@ namespace afft
                     out_imag,
                     in_real,
                     in_imag,
-                    buf,
-                    plan);
+                    plan,
+                    buf);
                 break;
             }
         }
@@ -134,8 +145,8 @@ namespace afft
                 out_imag,
                 in_real,
                 in_imag,
-                buf_.data(),
-                plan_);
+                plan_,
+                buf_.data());
         }
     };
 }

@@ -63,6 +63,7 @@ namespace afft
 
             scaling_factor_ = sample(1) / sample(n_samples);
             n_s_radix_stages_ = 0;
+            n_samples_ = n_samples;
 
             if (n_samples <= 1)
             {

@@ -21,16 +21,7 @@ namespace afft
         using sample_spec = typename BoundedSpec<Spec, 0>::spec;
         using sample = typename Spec::sample; 
 
-        ButterflyPlan<sample_spec, Allocator> plan_;
-        mutable std::vector<sample, Allocator> buf_;
-
         public:
-        explicit ButterflyImpl(std::size_t n_samples) : plan_(n_samples, Spec::n_samples_per_operand, Spec::prefetch_lookahead, Spec::min_partition_len), buf_(2 * n_samples) {}
-
-        const ButterflyPlan<sample_spec, Allocator> &plan() const
-        {
-            return plan_;
-        }
 
         template <bool Rescaling = false>
         static inline void eval(
@@ -38,12 +29,17 @@ namespace afft
             sample *out_imag,
             const sample *in_real,
             const sample *in_imag,
-            sample *buf,
-            const ButterflyPlan<sample_spec, Allocator> &plan)
+            const ButterflyPlan<sample_spec, Allocator> &plan,
+            sample *buf)
         {
 
             using sample = sample;
             sample scaling_factor;
+
+            if (plan.n_samples() <= 1) {
+                *out_real = *in_real;
+                *out_imag = *in_imag;
+            }
 
             sample *s_io_real[2];
             sample *s_io_imag[2];
@@ -176,22 +172,6 @@ namespace afft
                     break;
                 }
             }
-        }
-
-        template <bool Rescaling = false>
-        void eval(
-            sample *out_real,
-            sample *out_imag,
-            const sample *in_real,
-            const sample *in_imag) const
-        {
-            eval<Rescaling>(
-                out_real,
-                out_imag,
-                in_real,
-                in_imag,
-                buf_.data(),
-                plan_);
         }
     };
 }
