@@ -41,6 +41,8 @@ namespace afft
                 *out_imag = *in_imag;
             }
 
+            // TODO raise error if input and output matches
+
             sample *s_io_real[2];
             sample *s_io_imag[2];
 

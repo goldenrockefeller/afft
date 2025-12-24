@@ -12,7 +12,8 @@
 #include <sstream>
 #include <random>
 #include "otfft.h"
-#include "afft/fft_complex.hpp"
+// #include "afft/fft_complex.hpp"
+#include "afft/new_fft_complex.hpp"
 #include "afft/spec/val_array_spec.hpp"
 #include "afft/spec/double4_avx2_spec.hpp"
 #include "afft/spec/double2_sse2_spec.hpp"
@@ -24,6 +25,9 @@ using namespace afft;
 using namespace afft::common_math;
 using namespace afft::plan_indexes_manipulation;
 using namespace std;
+
+template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
+using FftComplex = NewFftComplex<Spec, Allocator>;
 
 class RandomGenerator
 {
@@ -47,7 +51,7 @@ void check_fft()
 {
     cout << "check_fft OperandSize: " << OperandSize << endl;
     std::vector<std::size_t> trials;
-    for (std::size_t i = 1; i < 18; i++)
+    for (std::size_t i = 1; i < 20; i++)
     {
         trials.push_back(1 << i);
     }
@@ -166,7 +170,7 @@ void check_fft_double4avx()
 {
     cout << "check_fft_double4avx" << 4 << endl;
     std::vector<std::size_t> trials;
-    for (std::size_t i = 1; i < 20; i++)
+    for (std::size_t i = 1; i < 8; i++)
     {
         trials.push_back(1 << i);
     }
@@ -282,7 +286,7 @@ void check_fft_double2sse()
 {
     cout << "check_fft_double2sse" << endl;
     std::vector<std::size_t> trials;
-    for (std::size_t i = 1; i < 7; i++)
+    for (std::size_t i = 1; i < 20; i++)
     {
         trials.push_back(1 << i);
     }
@@ -543,16 +547,16 @@ void do_bench()
                         simd_fft_sqr.eval(y_real + j * sqrt_n, y_imag  + j * sqrt_n, x_real + j * sqrt_n, x_imag + j * sqrt_n);
                     }
                 }  
-                IppStatus status = ippiTranspose_32fc_C1R(
-                    (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
-                    (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
-                    { (int) sqrt_n, (int)  sqrt_n }                            // size of the source matrix
-                );
-                status = ippiTranspose_32fc_C1R(
-                    (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
-                    (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
-                    { (int)  sqrt_n,  (int) sqrt_n }                            // size of the source matrix
-                );          
+                // IppStatus status = ippiTranspose_32fc_C1R(
+                //     (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
+                //     (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
+                //     { (int) sqrt_n, (int)  sqrt_n }                            // size of the source matrix
+                // );
+                // status = ippiTranspose_32fc_C1R(
+                //     (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // source pointer and step (row stride in bytes)
+                //     (Ipp32fc*) y_imag, sqrt_n * sizeof(Ipp32fc),        // destination pointer and step
+                //     { (int)  sqrt_n,  (int) sqrt_n }                            // size of the source matrix
+                // );          
             });
         }
 

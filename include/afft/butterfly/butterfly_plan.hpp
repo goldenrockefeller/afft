@@ -5,6 +5,7 @@
 #include <cstddef>
 
 #include <algorithm>
+#include <iostream>
 
 #include "afft/radix/radix_stage/radix_stage.hpp"
 #include "afft/radix/radix_stage/radix_type.hpp"
@@ -346,6 +347,8 @@ namespace afft
                 }
             }
 
+            pretty_print() ;
+
             // This version of the constructor turns an iterative butterfly plan into a hybrid/recursive plan
             std::vector<std::size_t> open_radix_stage_ids;
             std::vector<std::size_t> open_radix_stage_partition_counts;
@@ -445,6 +448,49 @@ namespace afft
                 reversed_radix_stages_.rbegin(),
                 reversed_radix_stages_.rend()
             );
+
+
+            // Pretty print the plan (for debugging purposes) Also print parameter values  (one stage per line, stage types are printed in text, not integers)
+            
+        }
+
+        void pretty_print() const {
+            std::cout << "ButterflyPlan:" << std::endl;
+            std::cout << "n_samples: " << n_samples_ << std::endl;
+            std::cout << "log_n_samples_per_operand: " << log_n_samples_per_operand_ << std::endl;
+            std::cout << "n_s_radix_stages: " << n_s_radix_stages_ << std::endl;
+            std::cout << "scaling_factor: " << scaling_factor_ << std::endl;
+            std::cout << "Stages:" << std::endl;
+            for (const auto& stage : radix_stages_) {
+                std::string type_str;
+                switch (stage.type) {
+                    case RadixType::s_radix2: type_str = "s_radix2"; break;
+                    case RadixType::s_radix4: type_str = "s_radix4"; break;
+                    case RadixType::ct_radix2: type_str = "ct_radix2"; break;
+                    case RadixType::ct_radix4: type_str = "ct_radix4"; break;
+                    default: type_str = "unknown"; break;
+                }
+                std::cout << type_str;
+                if (stage.type == RadixType::s_radix2) {
+                    const auto& p = stage.params.s_r2;
+                    std::cout << " twiddles: " << p.twiddles << " subfft_id_start: " << p.subfft_id_start << " subfft_id_end: " << p.subfft_id_end
+                            << " input_id: " << p.input_id << " output_id: " << p.output_id
+                            << " out_indexes: " << p.out_indexes << " in_indexes: " << p.in_indexes;
+                } else if (stage.type == RadixType::s_radix4) {
+                    const auto& p = stage.params.s_r4;
+                    std::cout << " twiddles: " << p.twiddles << " subfft_id_start: " << p.subfft_id_start << " subfft_id_end: " << p.subfft_id_end
+                            << " input_id: " << p.input_id << " output_id: " << p.output_id
+                            << " out_indexes: " << p.out_indexes << " in_indexes: " << p.in_indexes;
+                } else if (stage.type == RadixType::ct_radix2) {
+                    const auto& p = stage.params.ct_r2;
+                    std::cout << " twiddles: " << p.twiddles << " subtwiddle_len: " << p.subtwiddle_len << " subtwiddle_start: " << p.subtwiddle_start << " subtwiddle_end: " << p.subtwiddle_end;
+                } else if (stage.type == RadixType::ct_radix4) {
+                    const auto& p = stage.params.ct_r4;
+                    std::cout << " twiddles: " << p.twiddles << " subfft_id_start: " << p.subfft_id_start << " subfft_id_end: " << p.subfft_id_end
+                            << " subtwiddle_len: " << p.subtwiddle_len << " subtwiddle_start: " << p.subtwiddle_start << " subtwiddle_end: " << p.subtwiddle_end;
+                }
+                std::cout << std::endl;
+            }
         }
     };
 }
