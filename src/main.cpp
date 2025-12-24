@@ -588,9 +588,9 @@ int main()
 {
     
     
-    do_bench();
+    //do_bench();
 
-    // check_fft<1>();
+    check_fft<1>();
     //  check_fft<2>();
     //  check_fft<4>();
     // check_fft<8>();
@@ -600,7 +600,7 @@ int main()
     // check_fft<128>();
     // check_fft<256>();
 
-    // check_fft_double2sse();
+    check_fft_double2sse();
     check_fft_double4avx();
 
     

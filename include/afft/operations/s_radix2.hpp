@@ -3,8 +3,8 @@
 
 #include <cstddef>
 
-#include "afft/radix/s_radix2_impl.hpp"
-#include "afft/radix/radix_params/log_interleave_permute.hpp"
+#include "afft/operations/s_radix2_impl.hpp"
+#include "afft/stage/stage_params/log_interleave_permute.hpp"
 
 namespace afft
 {
@@ -19,9 +19,9 @@ namespace afft
         const std::size_t *in_indexes,
         std::size_t subfft_id_start,
         std::size_t subfft_id_end,
-        LogInterleavePermute log_interleave_permute,
         std::size_t n_samples,
-        const typename Spec::sample &scaling_factor
+        const typename Spec::sample &scaling_factor,
+        LogInterleavePermute log_interleave_permute
     )
     {
         switch (log_interleave_permute)

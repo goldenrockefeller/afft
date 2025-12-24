@@ -1,5 +1,5 @@
-#ifndef AFFT_PLAN_INDEXES_MANIPULATION_HPP
-#define AFFT_PLAN_INDEXES_MANIPULATION_HPP
+#ifndef AFFT_BIT_REVERSE_PERMUTE_HPP
+#define AFFT_BIT_REVERSE_PERMUTE_HPP
 
 #include <cstddef>
 #include <vector>
@@ -7,7 +7,7 @@
 
 namespace afft
 {
-    namespace plan_indexes_manipulation
+    namespace bit_reverse_permute
     {
         using common_math::int_log_2;
 

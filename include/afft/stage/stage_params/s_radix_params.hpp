@@ -17,6 +17,8 @@ namespace afft{
         std::size_t subfft_id_start;
         std::size_t subfft_id_end;
         std::size_t subtwiddle_len;
+        std::size_t n_samples;
+        Sample scaling_factor;
         LogInterleavePermute log_interleave_permute;
     };
 }
