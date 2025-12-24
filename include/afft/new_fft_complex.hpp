@@ -7,7 +7,7 @@
 #include <iostream>
 
 #include "afft/stage/stage.hpp"
-#include "afft/plan/butterfly.hpp"
+#include "afft/plan/plan_fft_complex.hpp"
 #include "afft/common_math.hpp"
 #include "afft/operations/s_radix2.hpp"
 #include "afft/operations/s_radix4.hpp"
@@ -27,6 +27,8 @@ namespace afft
         using sample = typename Spec::sample; 
 
     private:
+        enum data_ids { in_real = 0, in_imag = 1, out_real = 2, out_imag = 3, buf_real = 4, buf_imag = 5 };
+
         std::vector<Stage<sample>> plan_;
         std::vector<Stage<sample>> scaled_plan_;
         std::vector<sample, Allocator> twiddles_;
@@ -61,21 +63,32 @@ namespace afft
 
             
             // Create the butterfly plan
-            plan_ = butterfly::plan<sample>(n_samples, n_samples_per_operand, Spec::min_partition_len);
+            plan_ = plan::complex_fft_plan<sample>(n_samples, n_samples_per_operand, Spec::min_partition_len);
 
             // Get twiddles
-            auto twiddles_result = butterfly::twiddles<sample_spec, Allocator>(plan_, n_samples, n_samples_per_operand);
+            auto twiddles_result = plan::twiddles<sample_spec, Allocator>(plan_, n_samples, n_samples_per_operand);
             twiddles_ = std::move(twiddles_result.first);
             auto twiddle_map = std::move(twiddles_result.second);
 
             // Get bit reverse indexes
-            auto bit_reverse_result = butterfly::bit_reverse_indexes(plan_, n_samples, n_samples_per_operand);
+            auto bit_reverse_result = plan::bit_reverse_indexes(plan_, n_samples, n_samples_per_operand);
             in_permute_indexes_ = std::move(bit_reverse_result.first);
             out_permute_indexes_ = std::move(bit_reverse_result.second);
 
             // Set the pointers in the plan
-            butterfly::set_twiddle_pointers(plan_, twiddle_map);
-            butterfly::set_bit_reverse_pointers(plan_, in_permute_indexes_, out_permute_indexes_);
+            plan::set_twiddle_pointers(plan_, twiddle_map);
+            plan::set_bit_reverse_pointers(plan_, in_permute_indexes_, out_permute_indexes_);
+
+            // Set s_radix ids: in_real=0, in_imag=0 (dummy), out_real=1, out_imag=1, buf_real=0, buf_imag=0
+            plan::set_data_ids_for_complex_fft(
+                plan_, 
+                data_ids::in_real,
+                data_ids::in_imag,
+                data_ids::out_real, 
+                data_ids::out_imag, 
+                data_ids::buf_real,
+                data_ids::buf_imag
+            );
 
             // Create scaled_plan_ by replacing _init stages with _init_rescale counterparts
             scaled_plan_ = plan_;
@@ -90,6 +103,7 @@ namespace afft
             scaling_factor_ = sample(1) / sample(n_samples);
 
             buf_.resize(n_samples * 2);
+            
         }
 
         NewFftComplex(const NewFftComplex&) = default;
@@ -143,27 +157,16 @@ namespace afft
             return scaling_factor_;
         }
 
+
         template <typename BoundedSpec>
         static inline void bounded_eval(
-            sample *out_real,
-            sample *out_imag,
-            const sample *in_real,
-            const sample *in_imag,
+            sample **data,
             std::size_t n_samples,
             const sample &scaling_factor,
-            const std::vector<Stage<sample>> &plan,
-            sample *buf)
+            const std::vector<Stage<sample>> &plan)
         {
             if (plan.empty()) return;
 
-            sample *s_io_real[2];
-            sample *s_io_imag[2];
-
-            s_io_real[1] = buf;
-            s_io_real[0] = out_real;
-
-            s_io_imag[1] = buf + n_samples;
-            s_io_imag[0] = out_imag;
 
             for (std::size_t stage_id = 0; stage_id < plan.size(); stage_id++)
             {
@@ -175,8 +178,8 @@ namespace afft
                     {
                         auto &params = stage.params.ct_r4;
                         do_ct_radix4_stage<BoundedSpec>(
-                            out_real,
-                            out_imag,
+                            data[params.inout_real_id],
+                            data[params.inout_imag_id],
                             params.twiddles,
                             params.subfft_id_start,
                             params.subfft_id_end,
@@ -191,8 +194,8 @@ namespace afft
                         auto &params = stage.params.ct_r2;
                         
                         do_ct_radix2_stage<BoundedSpec>(
-                            out_real,
-                            out_imag,
+                            data[params.inout_real_id],
+                            data[params.inout_imag_id],
                             params.twiddles,
                             params.subtwiddle_len,
                             params.subtwiddle_start,
@@ -203,13 +206,13 @@ namespace afft
                     {
                         auto &params = stage.params.s_r;
                         do_s_radix4_stage<BoundedSpec, false, true>(
-                            s_io_real[params.to_buf ? 1 : 0],
-                            s_io_imag[params.to_buf ? 1 : 0],
-                            s_io_real[params.from_buf ? 1 : 0],
-                            s_io_imag[params.from_buf ? 1 : 0],
+                            data[params.out_real_id],
+                            data[params.out_imag_id],
+                            data[params.in_real_id],
+                            data[params.in_imag_id],
                             params.twiddles,
-                            params.out_indexes,
-                            params.in_indexes,
+                            params.out_permute_indexes,
+                            params.in_permute_indexes,
                             params.subfft_id_start,
                             params.subfft_id_end,
                             params.log_interleave_permute,
@@ -223,13 +226,13 @@ namespace afft
                     {
                         auto &params = stage.params.s_r;
                         do_s_radix2_stage<BoundedSpec, false, true>(
-                            s_io_real[params.to_buf ? 1 : 0],
-                            s_io_imag[params.to_buf ? 1 : 0],
-                            s_io_real[params.from_buf ? 1 : 0],
-                            s_io_imag[params.from_buf ? 1 : 0],
+                            data[params.out_real_id],
+                            data[params.out_imag_id],
+                            data[params.in_real_id],
+                            data[params.in_imag_id],
                             params.twiddles,
-                            params.out_indexes,
-                            params.in_indexes,
+                            params.out_permute_indexes,
+                            params.in_permute_indexes,
                             params.subfft_id_start,
                             params.subfft_id_end,
                             params.log_interleave_permute,
@@ -242,13 +245,13 @@ namespace afft
                     {
                         auto &params = stage.params.s_r;
                         do_s_radix4_stage<BoundedSpec, false, false>(
-                            s_io_real[params.to_buf ? 1 : 0],
-                            s_io_imag[params.to_buf ? 1 : 0],
-                            in_real,
-                            in_imag,
+                            data[params.out_real_id],
+                            data[params.out_imag_id],
+                            data[params.in_real_id],
+                            data[params.in_imag_id],
                             params.twiddles,
-                            params.out_indexes,
-                            params.in_indexes,
+                            params.out_permute_indexes,
+                            params.in_permute_indexes,
                             params.subfft_id_start,
                             params.subfft_id_end,
                             params.log_interleave_permute,
@@ -261,13 +264,13 @@ namespace afft
                     {
                         auto &params = stage.params.s_r;
                         do_s_radix2_stage<BoundedSpec, false, false>(
-                            s_io_real[params.to_buf ? 1 : 0],
-                            s_io_imag[params.to_buf ? 1 : 0],
-                            in_real,
-                            in_imag,
+                            data[params.out_real_id],
+                            data[params.out_imag_id],
+                            data[params.in_real_id],
+                            data[params.in_imag_id],
                             params.twiddles,
-                            params.out_indexes,
-                            params.in_indexes,
+                            params.out_permute_indexes,
+                            params.in_permute_indexes,
                             params.subfft_id_start,
                             params.subfft_id_end,
                             params.log_interleave_permute,
@@ -280,13 +283,13 @@ namespace afft
                     {
                         auto &params = stage.params.s_r;
                         do_s_radix4_stage<BoundedSpec, true, false>(
-                            s_io_real[params.to_buf ? 1 : 0],
-                            s_io_imag[params.to_buf ? 1 : 0],
-                            in_real,
-                            in_imag,
+                            data[params.out_real_id],
+                            data[params.out_imag_id],
+                            data[params.in_real_id],
+                            data[params.in_imag_id],
                             params.twiddles,
-                            params.out_indexes,
-                            params.in_indexes,
+                            params.out_permute_indexes,
+                            params.in_permute_indexes,
                             params.subfft_id_start,
                             params.subfft_id_end,
                             params.log_interleave_permute,
@@ -298,13 +301,13 @@ namespace afft
                     {
                         auto &params = stage.params.s_r;
                         do_s_radix2_stage<BoundedSpec, true, false>(
-                            s_io_real[params.to_buf ? 1 : 0],
-                            s_io_imag[params.to_buf ? 1 : 0],
-                            in_real,
-                            in_imag,
+                            data[params.out_real_id],
+                            data[params.out_imag_id],
+                            data[params.in_real_id],
+                            data[params.in_imag_id],
                             params.twiddles,
-                            params.out_indexes,
-                            params.in_indexes,
+                            params.out_permute_indexes,
+                            params.in_permute_indexes,
                             params.subfft_id_start,
                             params.subfft_id_end,
                             params.log_interleave_permute,
@@ -319,116 +322,77 @@ namespace afft
         }
 
         static inline void eval(
-            sample *out_real,
-            sample *out_imag,
-            const sample *in_real,
-            const sample *in_imag,
+            sample **data,
             std::size_t n_samples,
             std::size_t log_n_samples_per_operand,
             const sample &scaling_factor,
-            const std::vector<Stage<sample>> &plan,
-            sample *buf)
+            const std::vector<Stage<sample>> &plan)
         {
+
             switch (log_n_samples_per_operand)
             {
             case 0:
                 bounded_eval<typename BoundedSpec<Spec, 0>::spec>(
-                    out_real,
-                    out_imag,
-                    in_real,
-                    in_imag,
+                    data,
                     n_samples,
                     scaling_factor,
-                    plan,
-                    buf);
+                    plan);
                 break;
             case 1:
                 bounded_eval<typename BoundedSpec<Spec, 1>::spec>(
-                    out_real,
-                    out_imag,
-                    in_real,
-                    in_imag,
+                    data,
                     n_samples,
                     scaling_factor,
-                    plan,
-                    buf);
+                    plan);
                 break;
             case 2:
                 bounded_eval<typename BoundedSpec<Spec, 2>::spec>(
-                    out_real,
-                    out_imag,
-                    in_real,
-                    in_imag,
+                    data,
                     n_samples,
                     scaling_factor,
-                    plan,
-                    buf);
+                    plan);
                 break;
             case 3:
                 bounded_eval<typename BoundedSpec<Spec, 3>::spec>(
-                    out_real,
-                    out_imag,
-                    in_real,
-                    in_imag,
+                    data,
                     n_samples,
                     scaling_factor,
-                    plan,
-                    buf);
+                    plan);
                 break;
             case 4:
                 bounded_eval<typename BoundedSpec<Spec, 4>::spec>(
-                    out_real,
-                    out_imag,
-                    in_real,
-                    in_imag,
+                    data,
                     n_samples,
                     scaling_factor,
-                    plan,
-                    buf);
+                    plan);
                 break;
             case 5:
                 bounded_eval<typename BoundedSpec<Spec, 5>::spec>(
-                    out_real,
-                    out_imag,
-                    in_real,
-                    in_imag,
+                    data,
                     n_samples,
                     scaling_factor,
-                    plan,
-                    buf);
+                    plan);
                 break;
             case 6:
                 bounded_eval<typename BoundedSpec<Spec, 6>::spec>(
-                    out_real,
-                    out_imag,
-                    in_real,
-                    in_imag,
+                    data,
                     n_samples,
                     scaling_factor,
-                    plan,
-                    buf);
+                    plan);
                 break;
             case 7:
                 bounded_eval<typename BoundedSpec<Spec, 7>::spec>(
-                    out_real,
-                    out_imag,
-                    in_real,
-                    in_imag,
+                    data,
                     n_samples,
                     scaling_factor,
-                    plan,
-                    buf);
+                    plan);
                 break;
             case 8:
                 bounded_eval<typename BoundedSpec<Spec, 8>::spec>(
-                    out_real,
-                    out_imag,
-                    in_real,
-                    in_imag,
+                    data,
                     n_samples,
                     scaling_factor,
-                    plan,
-                    buf);
+                    plan);
                 break;
             default:
                 break;
@@ -441,16 +405,21 @@ namespace afft
             const sample *in_real,
             const sample *in_imag) const
         {
-           eval(
+            sample *data[6] = {
+                const_cast<sample*>(in_real),
+                const_cast<sample*>(in_imag),
                 out_real,
                 out_imag,
-                in_real,
-                in_imag,
+                buf_.data(),
+                buf_.data() + n_samples_
+            };
+
+            eval(
+                data,
                 n_samples_,
                 log_n_samples_per_operand_,
                 scaling_factor_,
-                plan_,
-                buf_.data());
+                plan_);
         }
 
         void fft(
@@ -459,16 +428,21 @@ namespace afft
             const sample *in_real,
             const sample *in_imag) const
         {
-           eval(
+            sample *data[6] = {
+                const_cast<sample*>(in_real),
+                const_cast<sample*>(in_imag),
                 out_real,
                 out_imag,
-                in_real,
-                in_imag,
+                buf_.data(),
+                buf_.data() + n_samples_
+            };
+
+            eval(
+                data,
                 n_samples_,
                 log_n_samples_per_operand_,
                 scaling_factor_,
-                plan_,
-                buf_.data());
+                plan_);
         }
 
         void fft_normalized(
@@ -477,16 +451,21 @@ namespace afft
             const sample *in_real,
             const sample *in_imag) const
         {
-            eval(
+            sample *data[6] = {
+                const_cast<sample*>(in_real),
+                const_cast<sample*>(in_imag),
                 out_real,
                 out_imag,
-                in_real,
-                in_imag,
+                buf_.data(),
+                buf_.data() + n_samples_
+            };
+
+            eval(
+                data,
                 n_samples_,
                 log_n_samples_per_operand_,
                 scaling_factor_,
-                scaled_plan_,
-                buf_.data());
+                scaled_plan_);
         }
 
         void ifft(
@@ -495,16 +474,21 @@ namespace afft
             const sample *in_real,
             const sample *in_imag) const
         {
-            eval(
-                in_real,
-                in_imag,
+            sample *data[6] = {
                 out_real,
                 out_imag,
+                const_cast<sample*>(in_real),
+                const_cast<sample*>(in_imag),
+                buf_.data(),
+                buf_.data() + n_samples_
+            };
+
+            eval(
+                data,
                 n_samples_,
                 log_n_samples_per_operand_,
                 scaling_factor_,
-                plan_,
-                buf_.data());
+                plan_);
         }
 
         void ifft_normalized(
@@ -513,16 +497,21 @@ namespace afft
             const sample *in_real,
             const sample *in_imag) const
         {
-            eval(
-                in_real,
-                in_imag,
+            sample *data[6] = {
                 out_real,
                 out_imag,
+                const_cast<sample*>(in_real),
+                const_cast<sample*>(in_imag),
+                buf_.data(),
+                buf_.data() + n_samples_
+            };
+
+            eval(
+                data,
                 n_samples_,
                 log_n_samples_per_operand_,
                 scaling_factor_,
-                scaled_plan_,
-                buf_.data());
+                scaled_plan_);
         }
     };
 }

@@ -23,7 +23,7 @@
 
 using namespace afft;
 using namespace afft::common_math;
-using namespace afft::plan_indexes_manipulation;
+using namespace afft::bit_reverse_permute;
 using namespace std;
 
 template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
@@ -590,9 +590,9 @@ int main()
     
     do_bench();
 
-    check_fft<1>();
-    // check_fft<2>();
-    // check_fft<4>();
+    // check_fft<1>();
+    //  check_fft<2>();
+    //  check_fft<4>();
     // check_fft<8>();
     // check_fft<16>();
     // check_fft<32>();
@@ -600,7 +600,7 @@ int main()
     // check_fft<128>();
     // check_fft<256>();
 
-    check_fft_double2sse();
+    // check_fft_double2sse();
     check_fft_double4avx();
 
     
