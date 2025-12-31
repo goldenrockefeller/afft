@@ -1,5 +1,5 @@
-#ifndef AFFT_PLAN_FFT_COMPLEX_HPP
-#define AFFT_PLAN_FFT_COMPLEX_HPP
+#ifndef AFFT_PLAN_COMPLEX_FFT_HPP
+#define AFFT_PLAN_COMPLEX_FFT_HPP
 
 #include <vector>
 #include <cstddef>
@@ -34,6 +34,7 @@ namespace afft
                 return {};
             }
 
+            std::size_t twiddles_offset = 0;
             std::size_t subtwiddle_len = 1;
             std::size_t log_subtwiddle_len = 0;
 
@@ -51,6 +52,7 @@ namespace afft
                     }
 
                     auto &params = stage.params.s_r;
+                    params.twiddles_offset = twiddles_offset;
                     params.subfft_id_start = 0;
                     params.subfft_id_end = n_samples / n_samples_per_operand / 2;
                     params.subtwiddle_len = subtwiddle_len;
@@ -67,6 +69,7 @@ namespace afft
                     plan_.push_back(stage);
                     subtwiddle_len *= 2;
                     log_subtwiddle_len += 1;
+                    twiddles_offset += 2 * n_samples_per_operand;
                     n_s_stages += 1;
 
                 }
@@ -84,6 +87,7 @@ namespace afft
                     }
 
                     auto &params = stage.params.s_r;
+                    params.twiddles_offset = twiddles_offset;
                     params.subfft_id_start = 0;
                     params.subfft_id_end = n_samples / n_samples_per_operand / 2;
                     params.subtwiddle_len = subtwiddle_len;
@@ -94,6 +98,7 @@ namespace afft
                     plan_.push_back(stage);
                     subtwiddle_len *= 2;
                     log_subtwiddle_len += 1;
+                    twiddles_offset += 2 * n_samples_per_operand;
                     n_s_stages += 1;
                 }
             }
@@ -111,6 +116,7 @@ namespace afft
                     }
 
                     auto &params = stage.params.s_r;
+                    params.twiddles_offset = twiddles_offset;
                     params.subfft_id_start = 0;
                     params.subfft_id_end = n_samples / n_samples_per_operand / 4;
                     params.subtwiddle_len = subtwiddle_len;
@@ -127,6 +133,7 @@ namespace afft
                     plan_.push_back(stage);
                     subtwiddle_len *= 4;
                     log_subtwiddle_len += 2;
+                    twiddles_offset += 6 * n_samples_per_operand;
                     n_s_stages += 1;
                 }
 
@@ -143,6 +150,7 @@ namespace afft
                     }
 
                     auto &params = stage.params.s_r;
+                    params.twiddles_offset = twiddles_offset;
                     params.subfft_id_start = 0;
                     params.subfft_id_end = n_samples / n_samples_per_operand / 2;
                     params.subtwiddle_len = subtwiddle_len;
@@ -159,6 +167,7 @@ namespace afft
                     plan_.push_back(stage);
                     subtwiddle_len *= 2;
                     log_subtwiddle_len += 1;
+                    twiddles_offset += 2 * n_samples_per_operand;
                     n_s_stages += 1;
                 }
 
@@ -175,6 +184,7 @@ namespace afft
                     }
 
                     auto &params = stage.params.s_r;
+                    params.twiddles_offset = twiddles_offset;
                     params.log_interleave_permute = as_log_interleave_permute(log_subtwiddle_len, true);
                     params.subfft_id_start = 0;
                     params.subfft_id_end = n_samples / n_samples_per_operand / 4;
@@ -184,6 +194,7 @@ namespace afft
                     plan_.push_back(stage);
                     subtwiddle_len *= 4;
                     log_subtwiddle_len += 2;
+                    twiddles_offset += 6 * n_samples_per_operand;
                     n_s_stages += 1;
                 }
             }    
@@ -198,11 +209,13 @@ namespace afft
                     Stage<Sample> stage;
                     stage.type = StageType::ct_radix2;
                     auto &params = stage.params.ct_r2; 
+                    params.twiddles_offset = twiddles_offset;
                     params.subtwiddle_len = subtwiddle_len;
                     params.subtwiddle_start = 0;
                     params.subtwiddle_end = subtwiddle_len;
 
                     plan_.push_back(stage);
+                    twiddles_offset += 2 * subtwiddle_len;
                     subtwiddle_len *= 2;
                     log_subtwiddle_len += 1;
                     break;
@@ -212,6 +225,7 @@ namespace afft
                     Stage<Sample> stage;
                     stage.type = StageType::ct_radix4;
                     auto &params = stage.params.ct_r4; 
+                    params.twiddles_offset = twiddles_offset;
                     params.subfft_id_start = 0;
                     params.subfft_id_end = n_samples / subtwiddle_len / 4;
                     params.subtwiddle_len = subtwiddle_len;
@@ -219,6 +233,7 @@ namespace afft
                     params.subtwiddle_end = subtwiddle_len;
 
                     plan_.push_back(stage);
+                    twiddles_offset += 6 * subtwiddle_len;
                     subtwiddle_len *= 4;
                     log_subtwiddle_len += 2;
                 }
@@ -325,16 +340,9 @@ namespace afft
         }
 
         template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
-        std::pair<std::vector<typename Spec::sample, Allocator>, std::unordered_map<std::size_t, const typename Spec::sample*>> twiddles(const std::vector<Stage<typename Spec::sample>>& plan, std::size_t n_samples, std::size_t n_samples_per_operand) {
+        std::vector<typename Spec::sample, Allocator> twiddles(const std::vector<Stage<typename Spec::sample>>& plan, std::size_t n_samples_per_operand) {
             std::unordered_map<std::size_t, std::vector<typename Spec::sample, Allocator>> twiddles_map;
-
-            namespace cm = afft::common_math;
-
-            if (n_samples <= 1)
-            {
-                return { {}, {} };
-            }
-
+            std::vector<std::size_t> subtwiddle_lens;
             namespace tw = afft::twiddles;
 
             for (const auto &stage : plan) {
@@ -363,6 +371,8 @@ namespace afft
                 if (twiddles_map.find(subtwiddle_len) != twiddles_map.end()) {
                     continue;
                 }
+                
+                subtwiddle_lens.push_back(subtwiddle_len);
 
                 // Create twiddles for this subtwiddle_len based on stage type
                 switch (stage.type) {
@@ -389,7 +399,6 @@ namespace afft
 
             // Now concatenate into master vector and create pointer map
             std::vector<typename Spec::sample, Allocator> master_twiddles;
-            std::unordered_map<std::size_t, const typename Spec::sample*> pointer_map;
 
             // Pre-calculate total size to avoid reallocation invalidating pointers
             std::size_t total_size = 0;
@@ -398,44 +407,13 @@ namespace afft
             }
             master_twiddles.reserve(total_size);
 
-            for (const auto& pair : twiddles_map) {
-                auto subtwiddle_len = pair.first;
-                const auto& vec = pair.second;
-                pointer_map[subtwiddle_len] = master_twiddles.data() + master_twiddles.size();
+            for (const auto& subtwiddle_len : subtwiddle_lens) {
+                const auto& vec = twiddles_map[subtwiddle_len];
                 master_twiddles.insert(master_twiddles.end(), vec.begin(), vec.end());
             }
 
-            return { std::move(master_twiddles), std::move(pointer_map) };
+            return master_twiddles;
 
-        }
-
-        template <typename Sample>
-        void set_twiddle_pointers(std::vector<Stage<Sample>>& plan, const std::unordered_map<std::size_t, const Sample*>& twiddle_map) {
-            for (auto& stage : plan) {
-                std::size_t subtwiddle_len = 0;
-
-                switch (stage.type) {
-                case StageType::ct_radix4:
-                    subtwiddle_len = stage.params.ct_r4.subtwiddle_len;
-                    stage.params.ct_r4.twiddles = twiddle_map.at(subtwiddle_len);
-                    break;
-                case StageType::ct_radix2:
-                    subtwiddle_len = stage.params.ct_r2.subtwiddle_len;
-                    stage.params.ct_r2.twiddles = twiddle_map.at(subtwiddle_len);
-                    break;
-                case StageType::s_radix4:
-                case StageType::s_radix4_init:
-                case StageType::s_radix4_init_rescale:
-                case StageType::s_radix2:
-                case StageType::s_radix2_init:
-                case StageType::s_radix2_init_rescale:
-                    subtwiddle_len = stage.params.s_r.subtwiddle_len;
-                    stage.params.s_r.twiddles = twiddle_map.at(subtwiddle_len);
-                    break;
-                default:
-                    break;
-                }
-            }
         }
 
         template <typename Sample>
@@ -459,33 +437,19 @@ namespace afft
             }
 
             if (n_samples_per_operand == 1)
-                return brp::bit_rev_indexes_for_1(n_samples, radix);  // Renamed from pim::bit_rev_indexes_for_1
+                return brp::bit_rev_indexes_for_1(n_samples, radix); 
             else
-                return brp::bit_rev_indexes_for_op(n_samples, radix, n_samples_per_operand);  // Renamed from pim::bit_rev_indexes_for_op
+                return brp::bit_rev_indexes_for_op(n_samples, radix, n_samples_per_operand);  
         }
 
-        template <typename Sample>
-        void set_bit_reverse_pointers(std::vector<Stage<Sample>>& stages, const std::vector<std::size_t>& in_permute_indexes, const std::vector<std::size_t>& out_permute_indexes) {
-            for (auto& stage : stages) {
-                bool is_s_radix = (stage.type == StageType::s_radix2 || stage.type == StageType::s_radix2_init || stage.type == StageType::s_radix2_init_rescale ||
-                                   stage.type == StageType::s_radix4 || stage.type == StageType::s_radix4_init || stage.type == StageType::s_radix4_init_rescale);
-                if (is_s_radix){
-                    if (stage.params.s_r.log_interleave_permute >= afft::LogInterleavePermute::n0Permuting) {
-                        stage.params.s_r.in_permute_indexes = in_permute_indexes.data();
-                        stage.params.s_r.out_permute_indexes = out_permute_indexes.data();
-                        break; // Assuming only one permuting stage
-                    }
-                }
-            }
-        }
 
         template <typename Sample>
         void set_s_stage_data_ids_for_complex_fft(
             std::vector<Stage<Sample>>& plan,
-            std::size_t in_real_id,
-            std::size_t in_imag_id,
             std::size_t out_real_id,
             std::size_t out_imag_id,
+            std::size_t in_real_id,
+            std::size_t in_imag_id,
             std::size_t buf_real_id,
             std::size_t buf_imag_id
         ) {
@@ -550,14 +514,14 @@ namespace afft
         template <typename Sample>
         void set_data_ids_for_complex_fft(
             std::vector<Stage<Sample>>& plan,
-            std::size_t in_real_id,
-            std::size_t in_imag_id,
             std::size_t out_real_id,
             std::size_t out_imag_id,
+            std::size_t in_real_id,
+            std::size_t in_imag_id,
             std::size_t buf_real_id,
             std::size_t buf_imag_id
         ) {
-            set_s_stage_data_ids_for_complex_fft(plan, in_real_id, in_imag_id, out_real_id, out_imag_id, buf_real_id, buf_imag_id);
+            set_s_stage_data_ids_for_complex_fft(plan, out_real_id, out_imag_id, in_real_id, in_imag_id, buf_real_id, buf_imag_id);
             set_ct_stage_data_ids_for_complex_fft(plan, out_real_id, out_imag_id);
         }
 
@@ -565,10 +529,12 @@ namespace afft
         void replace_init_stages_with_rescale(std::vector<Stage<Sample>>& plan, const Sample& scaling_factor)
         {
             for (auto& stage : plan) {
-                if (stage.type == StageType::s_radix4_init) {
+                if (stage.type == StageType::s_radix4_init || stage.type == StageType::s_radix4_init_rescale) {
                     stage.type = StageType::s_radix4_init_rescale;
-                } else if (stage.type == StageType::s_radix2_init) {
+                    stage.params.s_r.scaling_factor = scaling_factor;
+                } else if (stage.type == StageType::s_radix2_init || stage.type == StageType::s_radix2_init_rescale) {
                     stage.type = StageType::s_radix2_init_rescale;
+                    stage.params.s_r.scaling_factor = scaling_factor;
                 }
             }
         }

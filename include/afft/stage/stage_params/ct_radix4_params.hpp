@@ -8,7 +8,7 @@ namespace afft{
     struct CtRadix4Params {
         std::size_t inout_real_id;
         std::size_t inout_imag_id;
-        const Sample* twiddles; 
+        std::size_t twiddles_offset;
         std::size_t subfft_id_start;
         std::size_t subfft_id_end;
         std::size_t subtwiddle_len;

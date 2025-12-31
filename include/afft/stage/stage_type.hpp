@@ -10,7 +10,13 @@ namespace afft{
         s_radix4_init_rescale,
         s_radix2,
         s_radix2_init,
-        s_radix2_init_rescale
+        s_radix2_init_rescale,
+        conj_reverse,
+        deinterleave,
+        interleave,
+        apply_inv_rfft_rotor,
+        apply_rfft_rotor,
+        complex_multiply
     };
 }
 

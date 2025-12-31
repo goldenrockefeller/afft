@@ -126,8 +126,8 @@ namespace afft
             // COMPUTE
 
             if (Rescaling) {
-                alpha_real_b_op *= scaling_factor_op;
-                alpha_imag_b_op *= scaling_factor_op;
+                alpha_real_a_op *= scaling_factor_op;
+                alpha_imag_a_op *= scaling_factor_op;
                 alpha_real_b_op *= scaling_factor_op;
                 alpha_imag_b_op *= scaling_factor_op;
             }

@@ -1,5 +1,5 @@
-#ifndef AFFT_NEW_FFT_COMPLEX_HPP
-#define AFFT_NEW_FFT_COMPLEX_HPP
+#ifndef AFFT_COMPLEX_FFT_HPP
+#define AFFT_COMPLEX_FFT_HPP
 
 #include <vector>
 #include <unordered_map>
@@ -7,20 +7,20 @@
 #include <iostream>
 
 #include "afft/stage/stage.hpp"
-#include "afft/plan/plan_fft_complex.hpp"
+#include "afft/plan/plan_complex_fft.hpp"
 #include "afft/execute.hpp"
 
 namespace afft
 {
     template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
-    class NewFftComplex
+    class ComplexFft
     {
     public:
         using sample_spec = typename BoundedSpec<Spec, 0>::spec;
         using sample = typename Spec::sample; 
 
     private:
-        enum data_ids { in_real = 0, in_imag = 1, out_real = 2, out_imag = 3, buf_real = 4, buf_imag = 5 };
+        enum data_ids { out_real = 0, out_imag = 1, in_real = 2, in_imag = 3, buf_real = 4, buf_imag = 5 };
 
         std::vector<Stage<sample>> plan_;
         std::vector<Stage<sample>> scaled_plan_;
@@ -36,7 +36,7 @@ namespace afft
 
     public:
 
-        explicit NewFftComplex(std::size_t n_samples) 
+        explicit ComplexFft(std::size_t n_samples) 
         {
             namespace cm = afft::common_math;
             const std::size_t max_n_samples_per_operand =  Spec::n_samples_per_operand;
@@ -59,45 +59,38 @@ namespace afft
             plan_ = plan::complex_fft_plan<sample>(n_samples, n_samples_per_operand, Spec::min_partition_len);
 
             // Get twiddles
-            auto twiddles_result = plan::twiddles<sample_spec, Allocator>(plan_, n_samples, n_samples_per_operand);
-            twiddles_ = std::move(twiddles_result.first);
-            auto twiddle_map = std::move(twiddles_result.second);
+            twiddles_ = plan::twiddles<sample_spec, Allocator>(plan_, n_samples_per_operand);
 
             // Get bit reverse indexes
             auto bit_reverse_result = plan::bit_reverse_indexes(plan_, n_samples, n_samples_per_operand);
             in_permute_indexes_ = std::move(bit_reverse_result.first);
             out_permute_indexes_ = std::move(bit_reverse_result.second);
 
-            // Set the pointers in the plan
-            plan::set_twiddle_pointers(plan_, twiddle_map);
-            plan::set_bit_reverse_pointers(plan_, in_permute_indexes_, out_permute_indexes_);
-
-            // Set s_radix ids: in_real=0, in_imag=0 (dummy), out_real=1, out_imag=1, buf_real=0, buf_imag=0
             plan::set_data_ids_for_complex_fft(
                 plan_, 
-                data_ids::in_real,
-                data_ids::in_imag,
                 data_ids::out_real, 
                 data_ids::out_imag, 
+                data_ids::in_real,
+                data_ids::in_imag,
                 data_ids::buf_real,
                 data_ids::buf_imag
             );
 
             // Create scaled_plan_ by replacing _init stages with _init_rescale counterparts
             scaled_plan_ = plan_;
+            scaling_factor_ = sample(1) / sample(n_samples);
             plan::replace_init_stages_with_rescale(scaled_plan_, scaling_factor_);
 
-            scaling_factor_ = sample(1) / sample(n_samples);
 
             buf_.resize(n_samples * 2);
             
         }
 
-        NewFftComplex(const NewFftComplex&) = default;
-        NewFftComplex(NewFftComplex&&) = default;
-        NewFftComplex& operator=(const NewFftComplex&) = default;
-        NewFftComplex& operator=(NewFftComplex&&) = default;
-        ~NewFftComplex() = default;
+        ComplexFft(const ComplexFft&) = default;
+        ComplexFft(ComplexFft&&) = default;
+        ComplexFft& operator=(const ComplexFft&) = default;
+        ComplexFft& operator=(ComplexFft&&) = default;
+        ~ComplexFft() = default;
 
         const std::vector<Stage<sample>>& plan() const
         {
@@ -151,10 +144,10 @@ namespace afft
             const sample *in_imag) const
         {
             sample *data[6] = {
-                const_cast<sample*>(in_real),
-                const_cast<sample*>(in_imag),
                 out_real,
                 out_imag,
+                const_cast<sample*>(in_real),
+                const_cast<sample*>(in_imag),
                 buf_.data(),
                 buf_.data() + n_samples_
             };
@@ -162,6 +155,11 @@ namespace afft
             execute::eval<Spec>(
                 data,
                 plan_,
+                nullptr,
+                nullptr,
+                twiddles_.data(),
+                out_permute_indexes_.data(),
+                in_permute_indexes_.data(),
                 log_n_samples_per_operand_);
         }
 
@@ -172,10 +170,10 @@ namespace afft
             const sample *in_imag) const
         {
             sample *data[6] = {
-                const_cast<sample*>(in_real),
-                const_cast<sample*>(in_imag),
                 out_real,
                 out_imag,
+                const_cast<sample*>(in_real),
+                const_cast<sample*>(in_imag),
                 buf_.data(),
                 buf_.data() + n_samples_
             };
@@ -183,6 +181,11 @@ namespace afft
             execute::eval<Spec>(
                 data,
                 plan_,
+                nullptr,
+                nullptr,
+                twiddles_.data(),
+                out_permute_indexes_.data(),
+                in_permute_indexes_.data(),
                 log_n_samples_per_operand_);
         }
 
@@ -193,10 +196,10 @@ namespace afft
             const sample *in_imag) const
         {
             sample *data[6] = {
-                const_cast<sample*>(in_real),
-                const_cast<sample*>(in_imag),
                 out_real,
                 out_imag,
+                const_cast<sample*>(in_real),
+                const_cast<sample*>(in_imag),
                 buf_.data(),
                 buf_.data() + n_samples_
             };
@@ -204,6 +207,11 @@ namespace afft
             execute::eval<Spec>(
                 data,
                 scaled_plan_,
+                nullptr,
+                nullptr,
+                twiddles_.data(),
+                out_permute_indexes_.data(),
+                in_permute_indexes_.data(),
                 log_n_samples_per_operand_);
         }
 
@@ -214,10 +222,10 @@ namespace afft
             const sample *in_imag) const
         {
             sample *data[6] = {
-                out_real,
                 out_imag,
-                const_cast<sample*>(in_real),
+                out_real,
                 const_cast<sample*>(in_imag),
+                const_cast<sample*>(in_real),
                 buf_.data(),
                 buf_.data() + n_samples_
             };
@@ -225,6 +233,11 @@ namespace afft
             execute::eval<Spec>(
                 data,
                 plan_,
+                nullptr,
+                nullptr,
+                twiddles_.data(),
+                out_permute_indexes_.data(),
+                in_permute_indexes_.data(),
                 log_n_samples_per_operand_);
         }
 
@@ -235,10 +248,10 @@ namespace afft
             const sample *in_imag) const
         {
             sample *data[6] = {
-                out_real,
                 out_imag,
-                const_cast<sample*>(in_real),
+                out_real,
                 const_cast<sample*>(in_imag),
+                const_cast<sample*>(in_real),
                 buf_.data(),
                 buf_.data() + n_samples_
             };
@@ -246,6 +259,11 @@ namespace afft
             execute::eval<Spec>(
                 data,
                 scaled_plan_,
+                nullptr,
+                nullptr,
+                twiddles_.data(),
+                out_permute_indexes_.data(),
+                in_permute_indexes_.data(),
                 log_n_samples_per_operand_);
         }
     };

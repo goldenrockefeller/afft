@@ -1,5 +1,5 @@
 #include <iostream>
-// #include "afft/fft_complex.hpp"
+// #include "afft/complex_fft.hpp"
 // #include "afft/fft_real.hpp"
 // #include "afft/spec/double4_avx2_spec.hpp"
 // #include "afft/convolution_real.hpp"
@@ -12,8 +12,8 @@
 #include <sstream>
 #include <random>
 #include "otfft.h"
-// #include "afft/fft_complex.hpp"
-#include "afft/new_fft_complex.hpp"
+#include "afft/complex_fft.hpp"
+#include "afft/real_fft.hpp"
 #include "afft/spec/val_array_spec.hpp"
 #include "afft/spec/double4_avx2_spec.hpp"
 #include "afft/spec/double2_sse2_spec.hpp"
@@ -25,9 +25,6 @@ using namespace afft;
 using namespace afft::common_math;
 using namespace afft::bit_reverse_permute;
 using namespace std;
-
-template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
-using FftComplex = NewFftComplex<Spec, Allocator>;
 
 class RandomGenerator
 {
@@ -87,7 +84,7 @@ void check_fft()
         if (pFFTInitBuf)
             ippFree(pFFTInitBuf);
 
-        FftComplex<ValArraySpec<OperandSize>> fft(n_samples);
+        ComplexFft<ValArraySpec<OperandSize>> fft(n_samples);
 
         auto rng = RandomGenerator();
 
@@ -166,6 +163,289 @@ void check_fft()
     }
 }
 
+template <std::size_t OperandSize>
+void check_fft_normalized()
+{
+    cout << "check_fft_normalized OperandSize: " << OperandSize << endl;
+    std::vector<std::size_t> trials;
+    for (std::size_t i = 1; i < 20; i++)
+    {
+        trials.push_back(1 << i);
+    }
+    for (auto n_samples : trials)
+    {
+        const int order = int_log_2(n_samples);
+        IppsFFTSpec_C_64fc *pFFTSpec = 0;
+        Ipp8u *pFFTSpecBuf, *pFFTInitBuf, *pFFTWorkBuf;
+
+        Ipp64fc *pSrc = ippsMalloc_64fc(n_samples);
+        Ipp64fc *pDst = ippsMalloc_64fc(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> x_real(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> x_imag(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> y_real(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> y_imag(n_samples);
+
+        int sizeFFTSpec, sizeFFTInitBuf, sizeFFTWorkBuf;
+        ippsFFTGetSize_C_64fc(
+            order, IPP_FFT_NODIV_BY_ANY,
+            ippAlgHintFast, &sizeFFTSpec, &sizeFFTInitBuf, &sizeFFTWorkBuf);
+
+        pFFTSpecBuf = ippsMalloc_8u(sizeFFTSpec);
+        pFFTInitBuf = ippsMalloc_8u(sizeFFTInitBuf);
+        pFFTWorkBuf = ippsMalloc_8u(sizeFFTWorkBuf);
+
+        ippsFFTInit_C_64fc(&pFFTSpec, order, IPP_FFT_NODIV_BY_ANY,
+                           ippAlgHintFast, pFFTSpecBuf, pFFTInitBuf);
+        if (pFFTInitBuf)
+            ippFree(pFFTInitBuf);
+
+        ComplexFft<ValArraySpec<OperandSize>> fft(n_samples);
+
+        auto rng = RandomGenerator();
+
+        for (size_t i = 0; i < n_samples; i++)
+        {
+            auto r = rng.gen();
+            x_real[i] = r;
+            pSrc[i].re = r;
+
+            r = rng.gen();
+            x_imag[i] = r;
+            pSrc[i].im = r;
+        }
+
+        ippsFFTFwd_CToC_64fc(pSrc, pDst, pFFTSpec, pFFTWorkBuf);
+        for (size_t i = 0; i < n_samples; i++)
+        {
+            pDst[i].re /= static_cast<double>(n_samples);
+            pDst[i].im /= static_cast<double>(n_samples);
+        }
+        fft.fft_normalized(y_real.data(), y_imag.data(), x_real.data(), x_imag.data());
+
+        double signal_power_ = 0.0;
+        double noise_power_ = 0.0;
+
+        for (size_t i = 0; i < n_samples; i++)
+        {
+            signal_power_ += pDst[i].re * pDst[i].re;
+            signal_power_ += pDst[i].im * pDst[i].im;
+            noise_power_ += (pDst[i].re - y_real[i]) * (pDst[i].re - y_real[i]);
+            noise_power_ += (pDst[i].im - y_imag[i]) * (pDst[i].im - y_imag[i]);
+        }
+
+        auto snr = 10 * std::log10(signal_power_ / (noise_power_ + 1e-100) + 1e-100);
+
+        if (snr < 200)
+        {
+            cout << "check_fft_norm OperandSize: " << OperandSize
+                 << " N_samples: " << n_samples
+                 << " snr: " << snr
+                 << endl;
+
+            cout << "------------------------------------------- " << endl;
+        }
+
+        if (pSrc)
+            ippFree(pSrc);
+
+        if (pDst)
+            ippFree(pDst);
+
+        if (pFFTSpecBuf)
+            ippFree(pFFTSpecBuf);
+
+        if (pFFTWorkBuf)
+            ippFree(pFFTWorkBuf);
+    }
+}
+
+template <std::size_t OperandSize>
+void check_ifft_normalized()
+{
+    cout << "check_ifft_normalized OperandSize: " << OperandSize << endl;
+    std::vector<std::size_t> trials;
+    for (std::size_t i = 1; i < 20; i++)
+    {
+        trials.push_back(1 << i);
+    }
+    for (auto n_samples : trials)
+    {
+        const int order = int_log_2(n_samples);
+        IppsFFTSpec_C_64fc *pFFTSpec = 0;
+        Ipp8u *pFFTSpecBuf, *pFFTInitBuf, *pFFTWorkBuf;
+
+        Ipp64fc *pSrc = ippsMalloc_64fc(n_samples);
+        Ipp64fc *pDst = ippsMalloc_64fc(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> x_real(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> x_imag(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> y_real(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> y_imag(n_samples);
+
+        int sizeFFTSpec, sizeFFTInitBuf, sizeFFTWorkBuf;
+        ippsFFTGetSize_C_64fc(
+            order, IPP_FFT_NODIV_BY_ANY,
+            ippAlgHintFast, &sizeFFTSpec, &sizeFFTInitBuf, &sizeFFTWorkBuf);
+
+        pFFTSpecBuf = ippsMalloc_8u(sizeFFTSpec);
+        pFFTInitBuf = ippsMalloc_8u(sizeFFTInitBuf);
+        pFFTWorkBuf = ippsMalloc_8u(sizeFFTWorkBuf);
+
+        ippsFFTInit_C_64fc(&pFFTSpec, order, IPP_FFT_NODIV_BY_ANY,
+                           ippAlgHintFast, pFFTSpecBuf, pFFTInitBuf);
+        if (pFFTInitBuf)
+            ippFree(pFFTInitBuf);
+
+        ComplexFft<ValArraySpec<OperandSize>> fft(n_samples);
+
+        auto rng = RandomGenerator();
+
+        for (size_t i = 0; i < n_samples; i++)
+        {
+            auto r = rng.gen();
+            x_real[i] = r;
+            pSrc[i].re = r;
+
+            r = rng.gen();
+            x_imag[i] = r;
+            pSrc[i].im = r;
+        }
+
+        ippsFFTInv_CToC_64fc(pSrc, pDst, pFFTSpec, pFFTWorkBuf);
+        for (size_t i = 0; i < n_samples; i++)
+        {
+            pDst[i].re /= static_cast<double>(n_samples);
+            pDst[i].im /= static_cast<double>(n_samples);
+        }
+        fft.ifft_normalized(y_real.data(), y_imag.data(), x_real.data(), x_imag.data());
+
+        double signal_power_ = 0.0;
+        double noise_power_ = 0.0;
+
+        for (size_t i = 0; i < n_samples; i++)
+        {
+            signal_power_ += pDst[i].re * pDst[i].re;
+            signal_power_ += pDst[i].im * pDst[i].im;
+            noise_power_ += (pDst[i].re - y_real[i]) * (pDst[i].re - y_real[i]);
+            noise_power_ += (pDst[i].im - y_imag[i]) * (pDst[i].im - y_imag[i]);
+        }
+
+        auto snr = 10 * std::log10(signal_power_ / (noise_power_ + 1e-100) + 1e-100);
+
+        if (snr < 200)
+        {
+            cout << "check_ifft_norm OperandSize: " << OperandSize
+                 << " N_samples: " << n_samples
+                 << " snr: " << snr
+                 << endl;
+
+            cout << "------------------------------------------- " << endl;
+        }
+
+        if (pSrc)
+            ippFree(pSrc);
+
+        if (pDst)
+            ippFree(pDst);
+
+        if (pFFTSpecBuf)
+            ippFree(pFFTSpecBuf);
+
+        if (pFFTWorkBuf)
+            ippFree(pFFTWorkBuf);
+    }
+}
+
+template <std::size_t OperandSize>
+void check_ifft()
+{
+    cout << "check_ifft OperandSize: " << OperandSize << endl;
+    std::vector<std::size_t> trials;
+    for (std::size_t i = 1; i < 20; i++)
+    {
+        trials.push_back(1 << i);
+    }
+    for (auto n_samples : trials)
+    {
+        const int order = int_log_2(n_samples);
+        IppsFFTSpec_C_64fc *pFFTSpec = 0;
+        Ipp8u *pFFTSpecBuf, *pFFTInitBuf, *pFFTWorkBuf;
+
+        Ipp64fc *pSrc = ippsMalloc_64fc(n_samples);
+        Ipp64fc *pDst = ippsMalloc_64fc(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> x_real(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> x_imag(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> y_real(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> y_imag(n_samples);
+
+        int sizeFFTSpec, sizeFFTInitBuf, sizeFFTWorkBuf;
+        ippsFFTGetSize_C_64fc(
+            order, IPP_FFT_NODIV_BY_ANY,
+            ippAlgHintFast, &sizeFFTSpec, &sizeFFTInitBuf, &sizeFFTWorkBuf);
+
+        pFFTSpecBuf = ippsMalloc_8u(sizeFFTSpec);
+        pFFTInitBuf = ippsMalloc_8u(sizeFFTInitBuf);
+        pFFTWorkBuf = ippsMalloc_8u(sizeFFTWorkBuf);
+
+        ippsFFTInit_C_64fc(&pFFTSpec, order, IPP_FFT_NODIV_BY_ANY,
+                           ippAlgHintFast, pFFTSpecBuf, pFFTInitBuf);
+        if (pFFTInitBuf)
+            ippFree(pFFTInitBuf);
+
+        ComplexFft<ValArraySpec<OperandSize>> fft(n_samples);
+
+        auto rng = RandomGenerator();
+
+        for (size_t i = 0; i < n_samples; i++)
+        {
+            auto r = rng.gen();
+            x_real[i] = r;
+            pSrc[i].re = r;
+
+            r = rng.gen();
+            x_imag[i] = r;
+            pSrc[i].im = r;
+        }
+
+        ippsFFTInv_CToC_64fc(pSrc, pDst, pFFTSpec, pFFTWorkBuf);
+        fft.ifft(y_real.data(), y_imag.data(), x_real.data(), x_imag.data());
+
+        double signal_power_ = 0.0;
+        double noise_power_ = 0.0;
+
+        for (size_t i = 0; i < n_samples; i++)
+        {
+            signal_power_ += pDst[i].re * pDst[i].re;
+            signal_power_ += pDst[i].im * pDst[i].im;
+            noise_power_ += (pDst[i].re - y_real[i]) * (pDst[i].re - y_real[i]);
+            noise_power_ += (pDst[i].im - y_imag[i]) * (pDst[i].im - y_imag[i]);
+        }
+
+        auto snr = 10 * std::log10(signal_power_ / (noise_power_ + 1e-100) + 1e-100);
+
+        if (snr < 200)
+        {
+            cout << "check_ifft OperandSize: " << OperandSize
+                 << " N_samples: " << n_samples
+                 << " snr: " << snr
+                 << endl;
+
+            cout << "------------------------------------------- " << endl;
+        }
+
+        if (pSrc)
+            ippFree(pSrc);
+
+        if (pDst)
+            ippFree(pDst);
+
+        if (pFFTSpecBuf)
+            ippFree(pFFTSpecBuf);
+
+        if (pFFTWorkBuf)
+            ippFree(pFFTWorkBuf);
+    }
+}
+
 void check_fft_double4avx()
 {
     cout << "check_fft_double4avx" << 4 << endl;
@@ -206,7 +486,7 @@ void check_fft_double4avx()
         if (pFFTInitBuf)
             ippFree(pFFTInitBuf);
 
-        FftComplex<Double4Avx2Spec, xsimd::aligned_allocator<double, 1024>> fft(n_samples);
+        ComplexFft<Double4Avx2Spec, xsimd::aligned_allocator<double, 1024>> fft(n_samples);
 
         auto rng = RandomGenerator();
 
@@ -322,7 +602,7 @@ void check_fft_double2sse()
         if (pFFTInitBuf)
             ippFree(pFFTInitBuf);
 
-        FftComplex<Double2Sse2Spec, xsimd::aligned_allocator<double, 1024>> fft(n_samples);
+        ComplexFft<Double2Sse2Spec, xsimd::aligned_allocator<double, 1024>> fft(n_samples);
 
         auto rng = RandomGenerator();
 
@@ -401,6 +681,240 @@ void check_fft_double2sse()
     }
 }
 
+template <std::size_t OperandSize>
+void check_real_fft()
+{
+    cout << "check_real_fft OperandSize: " << OperandSize << endl;
+    std::vector<std::size_t> trials;
+    for (std::size_t i = 1; i < 20; i++)
+    {
+        trials.push_back(1 << i);
+    }
+
+    for (auto n_samples : trials)
+    {
+        const int order = int_log_2(n_samples);
+        IppsFFTSpec_C_64fc *pFFTSpec = 0;
+        Ipp8u *pFFTSpecBuf = nullptr, *pFFTInitBuf = nullptr, *pFFTWorkBuf = nullptr;
+
+        Ipp64fc *pSrc = ippsMalloc_64fc(n_samples);
+        Ipp64fc *pDst = ippsMalloc_64fc(n_samples);
+        std::vector<double, xsimd::aligned_allocator<double, 1024>> signal(n_samples);
+
+        int sizeFFTSpec, sizeFFTInitBuf, sizeFFTWorkBuf;
+        ippsFFTGetSize_C_64fc(
+            order, IPP_FFT_NODIV_BY_ANY,
+            ippAlgHintFast, &sizeFFTSpec, &sizeFFTInitBuf, &sizeFFTWorkBuf);
+
+        pFFTSpecBuf = ippsMalloc_8u(sizeFFTSpec);
+        pFFTInitBuf = ippsMalloc_8u(sizeFFTInitBuf);
+        pFFTWorkBuf = ippsMalloc_8u(sizeFFTWorkBuf);
+
+        ippsFFTInit_C_64fc(&pFFTSpec, order, IPP_FFT_NODIV_BY_ANY,
+                           ippAlgHintFast, pFFTSpecBuf, pFFTInitBuf);
+        if (pFFTInitBuf)
+            ippFree(pFFTInitBuf);
+
+        RealFft<ValArraySpec<OperandSize>> real_fft(n_samples);
+        const std::size_t unpacked_len = (n_samples >> 1) + 1;
+        std::vector<double> spectra_real(unpacked_len);
+        std::vector<double> spectra_imag(unpacked_len);
+
+        auto rng = RandomGenerator();
+        for (size_t i = 0; i < n_samples; i++)
+        {
+            auto r = rng.gen();
+            signal[i] = r;
+            pSrc[i].re = r;
+            pSrc[i].im = 0.0;
+        }
+
+        ippsFFTFwd_CToC_64fc(pSrc, pDst, pFFTSpec, pFFTWorkBuf);
+        real_fft.fft(spectra_real.data(), spectra_imag.data(), signal.data());
+
+        
+        /////////////////// COMPARE
+        double signal_power_ = 0.0;
+        double noise_power_ = 0.0;
+
+        for (size_t i = 0; i < n_samples/2 + 1; i++)
+        {
+            signal_power_ += pDst[i].re * pDst[i].re;
+            signal_power_ += pDst[i].im * pDst[i].im;
+            noise_power_ += (pDst[i].re - spectra_real[i]) * (pDst[i].re - spectra_real[i]);
+            noise_power_ += (pDst[i].im - spectra_imag[i]) * (pDst[i].im - spectra_imag[i]);
+            // 
+        }
+
+        auto snr = 10 * std::log10(signal_power_ / (noise_power_ + 1e-100) + 1e-100);
+
+        // Report
+        signal_power_ = 0.0;
+        noise_power_ = 0.0;
+
+        if (snr < 200)
+        {
+            cout << "check_real_fft + nyquist OperandSize: " << OperandSize
+                 << " N_samples: " << n_samples
+                 << " snr: " << snr
+                 << endl;
+
+            cout << "------------------------------------------- " << endl;
+        }
+
+        for (size_t i = 0; i < n_samples/2; i++)
+        {
+            signal_power_ += pDst[i].re * pDst[i].re;
+            signal_power_ += pDst[i].im * pDst[i].im;
+            noise_power_ += (pDst[i].re - spectra_real[i]) * (pDst[i].re - spectra_real[i]);
+            noise_power_ += (pDst[i].im - spectra_imag[i]) * (pDst[i].im - spectra_imag[i]);
+            // 
+        }
+
+        snr = 10 * std::log10(signal_power_ / (noise_power_ + 1e-100) + 1e-100);
+
+        // Report
+
+        if (snr < 200)
+        {
+            cout << "check_real_fft OperandSize: " << OperandSize
+                 << " N_samples: " << n_samples
+                 << " snr: " << snr
+                 << endl;
+
+            cout << "------------------------------------------- " << endl;
+        }
+
+        if (pSrc)
+            ippFree(pSrc);
+        if (pDst)
+            ippFree(pDst);
+        if (pFFTSpecBuf)
+            ippFree(pFFTSpecBuf);
+        if (pFFTWorkBuf)
+            ippFree(pFFTWorkBuf);
+    }
+}
+
+template <std::size_t OperandSize>
+void check_real_ifft()
+{
+    cout << "check_real_ifft OperandSize: " << OperandSize << endl;
+    std::vector<std::size_t> trials;
+    for (std::size_t i = 1; i < 20; i++)
+    {
+        trials.push_back(1 << i);
+    }
+
+    for (auto n_samples : trials)
+    {
+        RealFft<ValArraySpec<OperandSize>> real_fft(n_samples);
+        const std::size_t unpacked_len = (n_samples >> 1) + 1;
+        std::vector<double> spectra_real(unpacked_len);
+        std::vector<double> spectra_imag(unpacked_len);
+        std::vector<double> original(n_samples);
+        std::vector<double> reconstructed(n_samples);
+
+        auto rng = RandomGenerator();
+        for (size_t i = 0; i < n_samples; i++)
+        {
+            original[i] = rng.gen();
+        }
+
+        real_fft.fft(spectra_real.data(), spectra_imag.data(), original.data());
+        real_fft.ifft(reconstructed.data(), spectra_real.data(), spectra_imag.data());
+
+        const double inv_n = 1.0 / static_cast<double>(n_samples);
+        for (auto &value : reconstructed)
+        {
+            value *= inv_n;
+        }
+
+        double signal_power_ = 0.0;
+        double noise_power_ = 0.0;
+
+        for (size_t i = 0; i < n_samples; i++)
+        {
+            const double ref = original[i];
+            signal_power_ += ref * ref;
+            const double diff = ref - reconstructed[i];
+            noise_power_ += diff * diff;
+        }
+
+        auto snr = 10 * std::log10(signal_power_ / (noise_power_ + 1e-100) + 1e-100);
+
+        if (snr < 200)
+        {
+            cout << "check_real_ifft OperandSize: " << OperandSize
+                 << " N_samples: " << n_samples
+                 << " snr: " << snr << endl;
+            cout << "------------------------------------------- " << endl;
+        }
+    }
+}
+
+
+template <std::size_t OperandSize>
+void check_real_conv()
+{
+    cout << "check_real_conv OperandSize: " << OperandSize << endl;
+    std::vector<std::size_t> trials;
+    for (std::size_t i = 1; i < 13; i++)
+    {
+        trials.push_back(1 << i);
+    }
+
+    for (auto n_samples : trials)
+    {
+        RealFft<ValArraySpec<OperandSize>> real_fft(n_samples);
+        std::vector<double> signal_a(n_samples);
+        std::vector<double> signal_b(n_samples);
+        std::vector<double> conv_out(n_samples);
+        std::vector<double> conv_ref(n_samples);
+
+        auto rng = RandomGenerator();
+        for (std::size_t i = 0; i < n_samples; i++)
+        {
+            signal_a[i] = rng.gen();
+            signal_b[i] = rng.gen();
+        }
+
+        real_fft.conv(conv_out.data(), signal_a.data(), signal_b.data());
+
+        for (std::size_t i = 0; i < n_samples; i++)
+        {
+            double acc = 0.0;
+            for (std::size_t j = 0; j < n_samples; j++)
+            {
+                const std::size_t k = (i + n_samples - j) % n_samples;
+                acc += signal_a[j] * signal_b[k];
+            }
+            conv_ref[i] = acc;
+        }
+
+        double signal_power_ = 0.0;
+        double noise_power_ = 0.0;
+
+        for (std::size_t i = 0; i < n_samples; i++)
+        {
+            const double ref = conv_ref[i];
+            signal_power_ += ref * ref;
+            const double diff = ref - conv_out[i];
+            noise_power_ += diff * diff;
+        }
+
+        const double snr = 10 * std::log10(signal_power_ / (noise_power_ + 1e-100) + 1e-100);
+
+        if (snr < 200)
+        {
+            cout << "check_real_conv OperandSize: " << OperandSize
+                 << " N_samples: " << n_samples
+                 << " snr: " << snr << endl;
+            cout << "------------------------------------------- " << endl;
+        }
+    }
+}
+
 void do_bench()
 {
     cout << "do_bench: " << endl;
@@ -474,7 +988,7 @@ void do_bench()
         
         auto ot_fft = OTFFT::Factory::createComplexFFT(n_samples);
 
-        FftComplex<Double4Avx2Spec, xsimd::aligned_allocator<double, 1024>> simd_fft(n_samples);
+        ComplexFft<Double4Avx2Spec, xsimd::aligned_allocator<double, 1024>> simd_fft(n_samples);
 
         auto rng = RandomGenerator();
 
@@ -528,7 +1042,7 @@ void do_bench()
         if (n_samples > 16) {
             
             std::size_t sqrt_n = 1 << (int_log_2(n_samples) / 2);
-            FftComplex<Double4Avx2Spec, xsimd::aligned_allocator<double, 1024>> simd_fft_sqr(1 << (int_log_2(n_samples) / 2));
+            ComplexFft<Double4Avx2Spec, xsimd::aligned_allocator<double, 1024>> simd_fft_sqr(1 << (int_log_2(n_samples) / 2));
             bench.run("AFFT 4-step", [&]()
             { 
 
@@ -590,9 +1104,9 @@ int main()
     
     //do_bench();
 
-    check_fft<1>();
-    //  check_fft<2>();
-    //  check_fft<4>();
+    // check_fft<1>();
+    // check_fft<2>();
+    // check_fft<4>();
     // check_fft<8>();
     // check_fft<16>();
     // check_fft<32>();
@@ -600,11 +1114,51 @@ int main()
     // check_fft<128>();
     // check_fft<256>();
 
-    check_fft_double2sse();
-    check_fft_double4avx();
+    // check_ifft<1>();
+    // check_ifft<2>();
+    // check_ifft<4>();
+    // check_ifft<8>();
+    // check_ifft<16>();
+    // check_ifft<32>();
+    // check_ifft<64>();
+    // check_ifft<128>();
+    // check_ifft<256>();
 
-    
-    std::cout << "Done." << std::endl;
+    // check_fft_normalized<1>();
+    // check_fft_normalized<2>();
+    // check_fft_normalized<4>();
+    // check_fft_normalized<8>();
+    // check_fft_normalized<16>();
+    // check_fft_normalized<32>();
+    // check_fft_normalized<64>();
+    // check_fft_normalized<128>();
+    // check_fft_normalized<256>();
+
+    // check_ifft_normalized<1>();
+    // check_ifft_normalized<2>();
+    // check_ifft_normalized<4>();
+    // check_ifft_normalized<8>();
+    // check_ifft_normalized<16>();
+    // check_ifft_normalized<32>();
+    // check_ifft_normalized<64>();
+    // check_ifft_normalized<128>();
+    // check_ifft_normalized<256>();
+
+    // check_fft_double2sse();
+    // check_fft_double4avx();
+
+    check_real_fft<1>();
+    check_real_fft<2>();
+    check_real_fft<4>();
+
+    check_real_ifft<1>();
+    check_real_ifft<2>();
+    check_real_ifft<4>();
+
+    check_real_conv<1>();
+    check_real_conv<2>();
+    check_real_conv<4>();
 
     return 0;
 }
+
