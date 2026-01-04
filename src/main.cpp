@@ -14,6 +14,8 @@
 #include "otfft.h"
 #include "afft/complex_fft.hpp"
 #include "afft/real_fft.hpp"
+#include "afft/co_real_conv.hpp"
+#include "streaming_real_conv.hpp"
 #include "afft/spec/val_array_spec.hpp"
 #include "afft/spec/double4_avx2_spec.hpp"
 #include "afft/spec/double2_sse2_spec.hpp"
@@ -915,11 +917,174 @@ void check_real_conv()
     }
 }
 
+template <std::size_t OperandSize>
+void check_co_real_conv()
+{
+    cout << "check_co_real_conv OperandSize: " << OperandSize << endl;
+    std::vector<std::size_t> trials;
+    for (std::size_t i = 1; i < 13; i++)
+    {
+        trials.push_back(1 << i);
+    }
+
+    std::mt19937 chunk_rng(std::random_device{}());
+
+    for (auto n_samples : trials)
+    {
+        CoRealConv<ValArraySpec<OperandSize>> co_conv(n_samples);
+
+        std::vector<double> signal_a(n_samples);
+        std::vector<double> signal_b(n_samples);
+        std::vector<double> conv_out(n_samples);
+        std::vector<double> conv_ref(n_samples);
+
+        auto rng = RandomGenerator();
+        for (std::size_t i = 0; i < n_samples; i++)
+        {
+            signal_a[i] = rng.gen();
+            signal_b[i] = rng.gen();
+        }
+
+        const std::size_t total_steps = co_conv.total_steps();
+        std::uniform_int_distribution<std::size_t> chunk_dist(1, std::max<std::size_t>(std::size_t(1), total_steps));
+
+        while (!co_conv.finished())
+        {
+            const std::size_t remaining = co_conv.steps_remaining();
+            const std::size_t request = std::min(remaining, chunk_dist(chunk_rng));
+            const std::size_t processed = co_conv.process(
+                conv_out.data(),
+                signal_a.data(),
+                signal_b.data(),
+                request == 0 ? 1 : request);
+
+            if (processed == 0)
+            {
+                throw std::runtime_error("CoRealConv stalled during process");
+            }
+        }
+
+        for (std::size_t i = 0; i < n_samples; i++)
+        {
+            double acc = 0.0;
+            for (std::size_t j = 0; j < n_samples; j++)
+            {
+                const std::size_t k = (i + n_samples - j) % n_samples;
+                acc += signal_a[j] * signal_b[k];
+            }
+            conv_ref[i] = acc;
+        }
+
+        double signal_power_ = 0.0;
+        double noise_power_ = 0.0;
+
+        for (std::size_t i = 0; i < n_samples; i++)
+        {
+            const double ref = conv_ref[i];
+            signal_power_ += ref * ref;
+            const double diff = ref - conv_out[i];
+            noise_power_ += diff * diff;
+        }
+
+        const double snr = 10 * std::log10(signal_power_ / (noise_power_ + 1e-100) + 1e-100);
+
+        if (snr < 200)
+        {
+            cout << "check_co_real_conv OperandSize: " << OperandSize
+                 << " N_samples: " << n_samples
+                 << " snr: " << snr << endl;
+            cout << "------------------------------------------- " << endl;
+        }
+    }
+}
+
+template <std::size_t OperandSize>
+void check_streaming_real_conv()
+{
+    cout << "check_streaming_real_conv OperandSize: " << OperandSize << endl;
+
+    const std::size_t signal_len = 1024;
+    const std::size_t impulse_len = 32;
+
+    std::vector<double> signal(signal_len);
+    std::vector<double> impulse(impulse_len);
+
+    auto rng = RandomGenerator();
+    for (auto &sample : signal)
+    {
+        sample = rng.gen();
+    }
+    for (auto &tap : impulse)
+    {
+        tap = rng.gen();
+    }
+
+    StreamingRealConv<ValArraySpec<OperandSize>> streaming_conv(impulse.data(), impulse_len);
+
+    std::vector<double> streaming_output;
+    streaming_output.reserve(signal_len);
+
+    std::mt19937 chunk_rng(std::random_device{}());
+    std::uniform_int_distribution<std::size_t> chunk_dist_small(1, 7);
+    std::bernoulli_distribution chunk_large_prob(0.1);
+    std::vector<double> chunk_buffer;
+
+    std::size_t processed = 0;
+    while (processed < signal_len)
+    {
+        std::size_t chunk = chunk_large_prob(chunk_rng) ? 32 : chunk_dist_small(chunk_rng);
+        chunk = std::min(signal_len - processed, chunk);
+        chunk_buffer.resize(chunk);
+        streaming_conv.process_slice(signal.data() + processed, chunk, chunk_buffer.data());
+        streaming_output.insert(streaming_output.end(), chunk_buffer.begin(), chunk_buffer.end());
+        processed += chunk;
+    }
+
+    std::vector<double> reference(signal_len + impulse_len - 1, 0.0);
+    for (std::size_t i = 0; i < signal_len; ++i)
+    {
+        const double x = signal[i];
+        for (std::size_t j = 0; j < impulse_len; ++j)
+        {
+            reference[i + j] += x * impulse[j];
+        }
+    }
+
+    double signal_power_ = 0.0;
+    double noise_power_ = 0.0;
+    double max_error = 0.0;
+
+    for (std::size_t i = 0; i < streaming_output.size(); ++i)
+    {
+        const double ref = reference[i];
+        signal_power_ += ref * ref;
+        const double diff = ref - streaming_output[i];
+        noise_power_ += diff * diff;
+        max_error = std::max(max_error, std::abs(diff));
+    }
+
+    const double snr = 10 * std::log10(signal_power_ / (noise_power_ + 1e-100) + 1e-100);
+    const double max_tolerance = 1e-6;
+    const bool max_error_ok = max_error <= max_tolerance;
+
+    if (snr < 200 || !max_error_ok)
+    {
+        cout << "check_streaming_real_conv OperandSize: " << OperandSize
+             << " signal_len: " << signal_len
+             << " impulse_len: " << impulse_len
+             << " snr: " << snr
+             << " max_error: " << max_error
+             << " tolerance: " << max_tolerance
+             << endl;
+        cout << "------------------------------------------- " << endl;
+    }
+}
+
 void do_bench()
 {
     cout << "do_bench: " << endl;
     std::vector<std::size_t> trials;
-    for (std::size_t i = 1; i < 19; i++)
+    for (std::size_t i = 1; i < 10; i++)
     {
         trials.push_back(1 << i);
     }
@@ -1158,6 +1323,14 @@ int main()
     check_real_conv<1>();
     check_real_conv<2>();
     check_real_conv<4>();
+
+    check_co_real_conv<1>();
+    check_co_real_conv<2>();
+    check_co_real_conv<4>();
+
+    check_streaming_real_conv<1>();
+    check_streaming_real_conv<2>();
+    check_streaming_real_conv<4>();
 
     return 0;
 }
