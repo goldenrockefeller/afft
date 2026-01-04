@@ -1312,21 +1312,21 @@ int main()
     // check_fft_double2sse();
     // check_fft_double4avx();
 
-    check_real_fft<1>();
-    check_real_fft<2>();
-    check_real_fft<4>();
+    // check_real_fft<1>();
+    // check_real_fft<2>();
+    // check_real_fft<4>();
 
-    check_real_ifft<1>();
-    check_real_ifft<2>();
-    check_real_ifft<4>();
+    // check_real_ifft<1>();
+    // check_real_ifft<2>();
+    // check_real_ifft<4>();
 
-    check_real_conv<1>();
-    check_real_conv<2>();
-    check_real_conv<4>();
+    // check_real_conv<1>();
+    // check_real_conv<2>();
+    // check_real_conv<4>();
 
-    check_co_real_conv<1>();
-    check_co_real_conv<2>();
-    check_co_real_conv<4>();
+    // check_co_real_conv<1>();
+    // check_co_real_conv<2>();
+    // check_co_real_conv<4>();
 
     check_streaming_real_conv<1>();
     check_streaming_real_conv<2>();

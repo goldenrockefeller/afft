@@ -338,7 +338,8 @@ namespace afft
 
             bool finished() const
             {
-                return stage_index_ >= plan_.size();
+                // prefer global progress as authoritative; keep original check for safety
+                return global_offset_ >= total_length_ || stage_index_ >= plan_.size();
             }
 
             std::size_t process(
@@ -350,8 +351,21 @@ namespace afft
                 const std::size_t *in_permute_indexes,
                 std::size_t n_steps)
             {
-                if (n_steps == 0 || finished())
+                if (n_steps == 0)
                 {
+                    return 0;
+                }
+
+                if (finished())
+                {
+                    // Diagnostic: print internal state to help track inconsistency
+                    std::cerr << "[Coexecutor] process called but finished() == true\n"
+                              << "  plan_size=" << plan_.size()
+                              << " stage_index=" << stage_index_
+                              << " stage_offset=" << stage_offset_
+                              << " global_offset=" << global_offset_
+                              << " total_length=" << total_length_
+                              << " n_steps=" << n_steps << std::endl;
                     return 0;
                 }
 
@@ -832,7 +846,7 @@ namespace afft
                 execute_stage<BoundedSpec>(data, partial, rfft_rotor_real, rfft_rotor_imag, twiddles, out_permute_indexes, in_permute_indexes);
             }
 
-            const std::vector<Stage<sample>> &plan_;
+            std::vector<Stage<sample>> plan_;
             std::vector<std::size_t> stage_lengths_;
             std::size_t total_length_ = 0;
             std::size_t log_n_samples_per_operand_ = 0;
