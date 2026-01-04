@@ -2,12 +2,14 @@
 #define AFFT_REAL_TAIL_CONV_HPP
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
+#include <memory>
 #include <stdexcept>
 #include <utility>
 #include <vector>
 
-#include "afft/real_fft.hpp"
+#include "afft/co_real_conv.hpp"
 
 namespace afft
 {
@@ -53,19 +55,31 @@ namespace afft
         }
     }
 
-    template <typename Spec>
+    template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
     class RealTailConv
     {
+    private:
+        enum class CommitPhase
+        {
+            Idle,
+            CopyInput,
+            ZeroPad,
+            Convolution,
+            OutputAdd
+        };
+
     public:
         using sample = typename Spec::sample;
+        using allocator_type = Allocator;
+        using sample_vector = std::vector<sample, allocator_type>;
 
-        explicit RealTailConv(std::vector<sample> padded_tail_impulse)
+        explicit RealTailConv(sample_vector padded_tail_impulse)
             : impulse_response_(std::move(padded_tail_impulse)),
-              real_fft_(checked_len(impulse_response_.size())),
-              tail_input_buffer_(impulse_response_.size(), sample(0)),
+              tail_input_buffer_(checked_len(impulse_response_.size()), sample(0)),
               tail_conv_buffer_(impulse_response_.size(), sample(0)),
               tail_len_(impulse_response_.size() / 2),
               tail_conv_len_(impulse_response_.size()),
+              co_real_conv_(tail_conv_len_),
               staging_input_id_start_(0),
               staging_output_id_start_(tail_len_),
               commit_input_id_start_(0),
@@ -74,7 +88,8 @@ namespace afft
               commit_len_(0),
               commit_offset_(0),
               committing_(false),
-              staging_(false)
+              staging_(false),
+              commit_phase_(CommitPhase::Idle)
         {
             if ((impulse_response_.size() & (impulse_response_.size() - 1)) != 0)
             {
@@ -127,7 +142,7 @@ namespace afft
             }
 
             commit_offset_ += n_steps;
-            do_commit(input_buffer, output_buffer, max_input_id, max_output_id);
+            progress_commit(input_buffer, output_buffer, max_input_id, max_output_id);
         }
 
         void advance_stage(
@@ -142,8 +157,11 @@ namespace afft
 
             if (staging_len_ >= (tail_len_ / 2))
             {
+                if (committing_) {
+                    throw std::invalid_argument("Commit should have completed");
+                }
                 begin_commit(max_input_id, max_output_id);
-                do_commit(input_buffer, output_buffer, max_input_id, max_output_id);
+                progress_commit(input_buffer, output_buffer, max_input_id, max_output_id);
             }
         }
 
@@ -174,15 +192,35 @@ namespace afft
 
             committing_ = true;
             staging_ = false;
+
+            commit_phase_ = CommitPhase::CopyInput;
+            input_copy_progress_ = 0;
+            zero_pad_progress_ = 0;
+            output_add_progress_ = 0;
+            conv_steps_total_ = co_real_conv_.total_steps();
+            conv_steps_done_ = 0;
+            work_progress_ = 0;
+            total_work_units_ = commit_len_ + (tail_conv_len_ - commit_len_) + conv_steps_total_ + tail_conv_len_;
+            if (total_work_units_ == 0)
+            {
+                total_work_units_ = 1;
+            }
+
+            commit_input_read_pos_ = commit_input_id_start_;
+            commit_output_write_pos_ = commit_output_id_start_;
+            co_real_conv_.reset();
+
         }
 
-        void do_commit(
+        void progress_commit(
             sample *input_buffer,
             sample *output_buffer,
             std::size_t max_input_id,
             std::size_t max_output_id)
         {
-            if (!committing_ || commit_offset_ < tail_len_)
+
+            
+            if (!committing_ || total_work_units_ == 0 || max_input_id == 0 || max_output_id == 0)
             {
                 return;
             }
@@ -192,52 +230,157 @@ namespace afft
                 throw std::runtime_error("Tail commit length exceeds buffer capacity");
             }
 
-            std::fill(tail_input_buffer_.begin(), tail_input_buffer_.end(), sample(0));
-
-            std::size_t remaining = commit_len_;
-            std::size_t dest_offset = 0;
-            std::size_t read_pos = commit_input_id_start_;
-
-            while (remaining > 0)
+            if (input_buffer == nullptr || output_buffer == nullptr)
             {
-                const std::size_t contiguous = std::min(remaining, max_input_id - read_pos);
-                std::copy_n(
-                    input_buffer + read_pos,
-                    contiguous,
-                    tail_input_buffer_.data() + dest_offset);
+                throw std::invalid_argument("Tail commit buffers must be valid");
+            }
 
-                remaining -= contiguous;
-                dest_offset += contiguous;
-                read_pos += contiguous;
-                if (read_pos >= max_input_id)
+            const std::size_t half_tail = tail_len_ / 2;
+            if (commit_offset_ <= half_tail)
+            {
+                return;
+            }
+
+            double target_fraction = (2.0 * static_cast<double>(commit_offset_) / static_cast<double>(tail_len_)) - 1.0;
+            if (target_fraction < 0.0)
+            {
+                target_fraction = 0.0;
+            }
+            else if (target_fraction > 1.0)
+            {
+                target_fraction = 1.0;
+            }
+
+            std::size_t target_work = static_cast<std::size_t>(std::ceil(target_fraction * static_cast<double>(total_work_units_)));
+            if (target_work > total_work_units_)
+            {
+                target_work = total_work_units_;
+            }
+
+            while (committing_ && work_progress_ < target_work)
+            {
+                switch (commit_phase_)
                 {
-                    read_pos = 0;
+                case CommitPhase::CopyInput:
+
+                    if (input_copy_progress_ >= commit_len_)
+                    {
+                        commit_phase_ = CommitPhase::ZeroPad;
+                        break;
+                    }
+
+                    tail_input_buffer_[input_copy_progress_] = input_buffer[commit_input_read_pos_];
+                    ++input_copy_progress_;
+                    ++work_progress_;
+                    ++commit_input_read_pos_;
+                    if (commit_input_read_pos_ >= max_input_id)
+                    {
+                        commit_input_read_pos_ = 0;
+                    }
+                    break;
+
+                case CommitPhase::ZeroPad:
+                    {
+                        const std::size_t zero_len = tail_conv_len_ > commit_len_ ? tail_conv_len_ - commit_len_ : 0;
+                        if (zero_pad_progress_ >= zero_len)
+                        {
+                            commit_phase_ = CommitPhase::Convolution;
+                            break;
+                        }
+
+                        tail_input_buffer_[commit_len_ + zero_pad_progress_] = sample(0);
+                        ++zero_pad_progress_;
+                        ++work_progress_;
+                    }
+                    break;
+
+                case CommitPhase::Convolution:
+                    if (conv_steps_done_ >= conv_steps_total_)
+                    {
+                        commit_phase_ = CommitPhase::OutputAdd;
+                        break;
+                    }
+                    {
+                        const std::size_t remaining_conv = conv_steps_total_ - conv_steps_done_;
+                        const std::size_t remaining_work = target_work - work_progress_;
+                        if (remaining_work == 0)
+                        {
+                            return;
+                        }
+
+                        const std::size_t request_steps = std::min(remaining_conv, remaining_work);
+
+                        if (tail_input_buffer_.size() < tail_conv_len_ ||
+                            tail_conv_buffer_.size() < tail_conv_len_ ||
+                            impulse_response_.size() != tail_conv_len_)
+                        {
+                            throw std::runtime_error("RealTailConv: buffer size mismatch before convolution");
+                        }
+
+                        // run incremental convolution
+                        const std::size_t executed = co_real_conv_.process(
+                            tail_conv_buffer_.data(),
+                            tail_input_buffer_.data(),
+                            impulse_response_.data(),
+                            request_steps);
+
+                        conv_steps_done_ += executed;
+                        work_progress_ += executed;
+                    }
+                    break;
+
+                case CommitPhase::OutputAdd:
+                    if (output_add_progress_ >= tail_conv_len_)
+                    {
+                        finish_commit();
+                        break;
+                    }
+
+                    output_buffer[commit_output_write_pos_] += tail_conv_buffer_[output_add_progress_];
+                    ++output_add_progress_;
+                    ++work_progress_;
+                    ++commit_output_write_pos_;
+                    if (commit_output_write_pos_ >= max_output_id)
+                    {
+                        commit_output_write_pos_ = 0;
+                    }
+
+                    if (output_add_progress_ >= tail_conv_len_)
+                    {
+                        finish_commit();
+                    }
+                    break;
+
+                case CommitPhase::Idle:
+                default:
+                    return;
                 }
             }
 
-            real_fft_.conv(
-                tail_conv_buffer_.data(),
-                tail_input_buffer_.data(),
-                impulse_response_.data());
+        }
 
-            streaming_detail::circular_add(
-                output_buffer,
-                max_output_id,
-                tail_conv_buffer_.data(),
-                tail_conv_len_,
-                commit_output_id_start_);
-
+        void finish_commit()
+        {
+            
             committing_ = false;
             commit_len_ = 0;
             commit_offset_ = 0;
+            work_progress_ = total_work_units_;
+            total_work_units_ = 0;
+            conv_steps_total_ = 0;
+            conv_steps_done_ = 0;
+            input_copy_progress_ = 0;
+            zero_pad_progress_ = 0;
+            output_add_progress_ = 0;
+            commit_phase_ = CommitPhase::Idle;
         }
 
-        std::vector<sample> impulse_response_;
-        RealFft<Spec> real_fft_;
-        std::vector<sample> tail_input_buffer_;
-        std::vector<sample> tail_conv_buffer_;
+        sample_vector impulse_response_;
+        sample_vector tail_input_buffer_;
+        sample_vector tail_conv_buffer_;
         std::size_t tail_len_;
         std::size_t tail_conv_len_;
+        CoRealConv<Spec, Allocator> co_real_conv_;
         std::size_t staging_input_id_start_;
         std::size_t staging_output_id_start_;
         std::size_t commit_input_id_start_;
@@ -247,6 +390,16 @@ namespace afft
         std::size_t commit_offset_;
         bool committing_;
         bool staging_;
+        CommitPhase commit_phase_;
+        std::size_t commit_input_read_pos_ = 0;
+        std::size_t commit_output_write_pos_ = 0;
+        std::size_t input_copy_progress_ = 0;
+        std::size_t zero_pad_progress_ = 0;
+        std::size_t output_add_progress_ = 0;
+        std::size_t conv_steps_total_ = 0;
+        std::size_t conv_steps_done_ = 0;
+        std::size_t work_progress_ = 0;
+        std::size_t total_work_units_ = 0;
     };
 }
 

@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <memory>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -12,11 +13,13 @@
 
 namespace afft
 {
-    template <typename Spec>
+    template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
     class StreamingRealConv
     {
     public:
         using sample = typename Spec::sample;
+        using allocator_type = Allocator;
+        using sample_vector = std::vector<sample, allocator_type>;
 
         StreamingRealConv(const sample *impulse_response, std::size_t impulse_len)
                         : convolution_len_(compute_convolution_len(impulse_len)),
@@ -87,8 +90,8 @@ namespace afft
         {
             std::size_t head_len;
             std::size_t padded_len;
-            RealFft<Spec> fft;
-            std::vector<sample> impulse;
+            RealFft<Spec, Allocator> fft;
+            sample_vector impulse;
 
             HeadPartition(std::size_t head_len_value, const sample *impulse_src, std::size_t impulse_len)
                 : head_len(head_len_value),
@@ -150,7 +153,7 @@ namespace afft
             while ((tail_len * 2) <= convolution_len_)
             {
                 const std::size_t padded_len = tail_len * 2;
-                std::vector<sample> padded_response(padded_len, sample(0));
+                sample_vector padded_response(padded_len, sample(0));
 
                 const std::size_t impulse_end = std::min(tail_len * 2, impulse_len);
                 if (impulse_end > tail_len)
@@ -253,12 +256,12 @@ namespace afft
         std::size_t output_buffer_len_;
         std::size_t head_input_id_;
         std::size_t head_output_id_;
-        std::vector<sample> input_buffer_;
-        std::vector<sample> output_buffer_;
-        std::vector<sample> head_input_buffer_;
-        std::vector<sample> head_conv_buffer_;
+        sample_vector input_buffer_;
+        sample_vector output_buffer_;
+        sample_vector head_input_buffer_;
+        sample_vector head_conv_buffer_;
         std::vector<HeadPartition> head_partitions_;
-        std::vector<RealTailConv<Spec>> tail_convs_;
+        std::vector<RealTailConv<Spec, Allocator>> tail_convs_;
     };
 }
 
