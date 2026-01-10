@@ -1,5 +1,5 @@
-#ifndef AFFT_CO_REAL_CONV_HPP
-#define AFFT_CO_REAL_CONV_HPP
+#ifndef AFFT_CO_REAL_CONV_CACHED_HPP
+#define AFFT_CO_REAL_CONV_CACHED_HPP
 
 #include <array>
 #include <algorithm>
@@ -16,13 +16,13 @@
 namespace afft
 {
     template <typename Spec, class Allocator = std::allocator<typename Spec::sample>>
-    class CoRealConv
+    class CoRealConvCached
     {
     public:
         using sample = typename Spec::sample;
         using sample_spec = typename BoundedSpec<Spec, 0>::spec;
 
-        explicit CoRealConv(std::size_t signal_len)
+        explicit CoRealConvCached(std::size_t signal_len)
             : signal_len_(checked_signal_len(signal_len)),
               spectra_len_(signal_len_ >> 1),
               log_n_samples_per_operand_(compute_operand_log(spectra_len_)),
@@ -37,8 +37,9 @@ namespace afft
 
         std::size_t process(
             sample *signal_out,
-            const sample *signal_a,
-            const sample *second_input_real,
+            const sample *signal,
+            const sample *cached_spectra_real,
+            const sample *cached_spectra_imag,
             std::size_t n_steps)
         {
             if (n_steps == 0)
@@ -46,9 +47,10 @@ namespace afft
                 return 0;
             }
 
-            if (signal_out == nullptr || signal_a == nullptr)
+            if (signal_out == nullptr || signal == nullptr ||
+                cached_spectra_real == nullptr || cached_spectra_imag == nullptr)
             {
-                throw std::invalid_argument("CoRealConv requires non-null buffers");
+                throw std::invalid_argument("CoRealConvCached requires non-null buffers");
             }
 
             if (is_small_case_)
@@ -58,33 +60,22 @@ namespace afft
                     return 0;
                 }
 
-                if (second_input_real == nullptr)
-                {
-                    throw std::invalid_argument("CoRealConv full convolution requires two input signals");
-                }
+                const sample s0 = signal[0];
+                const sample s1 = signal[1];
+                const sample impulse0 = sample(0.5) * (cached_spectra_real[0] + cached_spectra_imag[0]);
+                const sample impulse1 = sample(0.5) * (cached_spectra_real[0] - cached_spectra_imag[0]);
 
-                const sample a0 = signal_a[0];
-                const sample a1 = signal_a[1];
-                const sample b0 = second_input_real[0];
-                const sample b1 = second_input_real[1];
-
-                signal_out[0] = a0 * b0 + a1 * b1;
-                signal_out[1] = a0 * b1 + a1 * b0;
+                signal_out[0] = s0 * impulse0 + s1 * impulse1;
+                signal_out[1] = s0 * impulse1 + s1 * impulse0;
 
                 small_case_progress_ = 1;
                 return 1;
             }
 
-            bind_common_slots(signal_out, signal_a);
+            bind_common_slots(signal_out, signal);
 
-            if (second_input_real == nullptr)
-            {
-                throw std::invalid_argument("CoRealConv full convolution requires two input signals");
-            }
-
-            data_[ConvolutionIds::conv_in_b] = const_cast<sample *>(second_input_real);
-            data_[ConvolutionIds::conv_spectra_b_real] = conv_spectra_b_real_.data();
-            data_[ConvolutionIds::conv_spectra_b_imag] = conv_spectra_b_imag_.data();
+            data_[ConvolutionIds::conv_cached_real] = const_cast<sample *>(cached_spectra_real);
+            data_[ConvolutionIds::conv_cached_imag] = const_cast<sample *>(cached_spectra_imag);
 
             return run_coexecutor(n_steps);
         }
@@ -125,12 +116,11 @@ namespace afft
         {
             conv_out = 0,
             conv_out_offset,
-            conv_in_a,
-            conv_in_b,
-            conv_spectra_a_real,
-            conv_spectra_a_imag,
-            conv_spectra_b_real,
-            conv_spectra_b_imag,
+            conv_signal,
+            conv_signal_spectra_real,
+            conv_signal_spectra_imag,
+            conv_cached_real,
+            conv_cached_imag,
             conv_buf_a_real,
             conv_buf_a_imag,
             conv_buf_b_real,
@@ -143,7 +133,7 @@ namespace afft
         {
             if (len < 2 || (len & (len - 1)) != 0)
             {
-                throw std::invalid_argument("CoRealConv length must be a power of two and >= 2");
+                throw std::invalid_argument("CoRealConvCached length must be a power of two and >= 2");
             }
             return len;
         }
@@ -164,18 +154,17 @@ namespace afft
 
         static std::vector<Stage<sample>> make_conv_plan(std::size_t signal_len, std::size_t n_samples_per_operand)
         {
-            return plan::real_conv_plan<sample>(
+            return plan::real_conv_plan_with_cached_spectra<sample>(
                 signal_len,
                 n_samples_per_operand,
                 Spec::min_partition_len,
                 ConvolutionIds::conv_out,
                 ConvolutionIds::conv_out_offset,
-                ConvolutionIds::conv_in_a,
-                ConvolutionIds::conv_in_b,
-                ConvolutionIds::conv_spectra_a_real,
-                ConvolutionIds::conv_spectra_a_imag,
-                ConvolutionIds::conv_spectra_b_real,
-                ConvolutionIds::conv_spectra_b_imag,
+                ConvolutionIds::conv_signal,
+                ConvolutionIds::conv_signal_spectra_real,
+                ConvolutionIds::conv_signal_spectra_imag,
+                ConvolutionIds::conv_cached_real,
+                ConvolutionIds::conv_cached_imag,
                 ConvolutionIds::conv_buf_a_real,
                 ConvolutionIds::conv_buf_a_imag,
                 ConvolutionIds::conv_buf_b_real,
@@ -195,20 +184,18 @@ namespace afft
 
             buf_a_.resize(spectra_len_ * 2);
             buf_b_.resize(spectra_len_ * 2);
-            conv_spectra_a_real_.resize(spectra_len_);
-            conv_spectra_a_imag_.resize(spectra_len_);
-            conv_spectra_b_real_.resize(spectra_len_);
-            conv_spectra_b_imag_.resize(spectra_len_);
+            signal_spectra_real_.resize(spectra_len_);
+            signal_spectra_imag_.resize(spectra_len_);
         }
 
-        void bind_common_slots(sample *signal_out, const sample *signal_a)
+        void bind_common_slots(sample *signal_out, const sample *signal)
         {
             data_[ConvolutionIds::conv_out] = signal_out;
             data_[ConvolutionIds::conv_out_offset] = signal_out + spectra_len_;
-            data_[ConvolutionIds::conv_in_a] = const_cast<sample *>(signal_a);
+            data_[ConvolutionIds::conv_signal] = const_cast<sample *>(signal);
 
-            data_[ConvolutionIds::conv_spectra_a_real] = conv_spectra_a_real_.data();
-            data_[ConvolutionIds::conv_spectra_a_imag] = conv_spectra_a_imag_.data();
+            data_[ConvolutionIds::conv_signal_spectra_real] = signal_spectra_real_.data();
+            data_[ConvolutionIds::conv_signal_spectra_imag] = signal_spectra_imag_.data();
 
             sample *buf_a_real = buf_a_.data();
             sample *buf_b_real = buf_b_.data();
@@ -252,10 +239,8 @@ namespace afft
 
         std::vector<sample, Allocator> buf_a_;
         std::vector<sample, Allocator> buf_b_;
-        std::vector<sample, Allocator> conv_spectra_a_real_;
-        std::vector<sample, Allocator> conv_spectra_a_imag_;
-        std::vector<sample, Allocator> conv_spectra_b_real_;
-        std::vector<sample, Allocator> conv_spectra_b_imag_;
+        std::vector<sample, Allocator> signal_spectra_real_;
+        std::vector<sample, Allocator> signal_spectra_imag_;
 
         std::array<sample *, data_slot_count> data_{};
     };

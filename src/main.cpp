@@ -15,6 +15,7 @@
 #include "afft/complex_fft.hpp"
 #include "afft/real_fft.hpp"
 #include "afft/co_real_conv.hpp"
+#include "afft/co_real_conv_cached.hpp"
 #include "streaming_real_conv.hpp"
 #include "afft/spec/val_array_spec.hpp"
 #include "afft/spec/double4_avx2_spec.hpp"
@@ -918,6 +919,76 @@ void check_real_conv()
 }
 
 template <std::size_t OperandSize>
+void check_real_conv_cached_fft()
+{
+    cout << "check_real_conv_cached_fft OperandSize: " << OperandSize << endl;
+    std::vector<std::size_t> trials;
+    for (std::size_t i = 1; i < 13; i++)
+    {
+        trials.push_back(1 << i);
+    }
+
+    for (auto n_samples : trials)
+    {
+        RealFft<ValArraySpec<OperandSize>> real_fft(n_samples);
+        std::vector<double> signal(n_samples);
+        std::vector<double> impulse(n_samples);
+        std::vector<double> conv_out(n_samples);
+        std::vector<double> conv_ref(n_samples);
+
+        auto rng = RandomGenerator();
+        for (std::size_t i = 0; i < n_samples; i++)
+        {
+            signal[i] = rng.gen();
+            impulse[i] = rng.gen();
+        }
+
+        std::vector<double> cached_real(real_fft.spectra_len() + 1);
+        std::vector<double> cached_imag(real_fft.spectra_len() + 1);
+        real_fft.fft(cached_real.data(), cached_imag.data(), impulse.data());
+        cached_imag[0] = cached_real[real_fft.spectra_len()];
+
+        real_fft.conv_with_cached_fft(
+            conv_out.data(),
+            signal.data(),
+            cached_real.data(),
+            cached_imag.data());
+
+        for (std::size_t i = 0; i < n_samples; i++)
+        {
+            double acc = 0.0;
+            for (std::size_t j = 0; j < n_samples; j++)
+            {
+                const std::size_t k = (i + n_samples - j) % n_samples;
+                acc += signal[j] * impulse[k];
+            }
+            conv_ref[i] = acc;
+        }
+
+        double signal_power_ = 0.0;
+        double noise_power_ = 0.0;
+
+        for (std::size_t i = 0; i < n_samples; i++)
+        {
+            const double ref = conv_ref[i];
+            signal_power_ += ref * ref;
+            const double diff = ref - conv_out[i];
+            noise_power_ += diff * diff;
+        }
+
+        const double snr = 10 * std::log10(signal_power_ / (noise_power_ + 1e-100) + 1e-100);
+
+        if (snr < 200)
+        {
+            cout << "check_real_conv_cached_fft OperandSize: " << OperandSize
+                 << " N_samples: " << n_samples
+                 << " snr: " << snr << endl;
+            cout << "------------------------------------------- " << endl;
+        }
+    }
+}
+
+template <std::size_t OperandSize>
 void check_co_real_conv()
 {
     cout << "check_co_real_conv OperandSize: " << OperandSize << endl;
@@ -991,6 +1062,99 @@ void check_co_real_conv()
         if (snr < 200)
         {
             cout << "check_co_real_conv OperandSize: " << OperandSize
+                 << " N_samples: " << n_samples
+                 << " snr: " << snr << endl;
+            cout << "------------------------------------------- " << endl;
+        }
+    }
+}
+
+template <std::size_t OperandSize>
+void check_co_real_conv_cached_fft()
+{
+    cout << "check_co_real_conv_cached_fft OperandSize: " << OperandSize << endl;
+    std::vector<std::size_t> trials;
+    for (std::size_t i = 1; i < 13; i++)
+    {
+        trials.push_back(1 << i);
+    }
+
+    std::mt19937 chunk_rng(std::random_device{}());
+
+    for (auto n_samples : trials)
+    {
+        if (n_samples == 2)
+        {
+            continue;
+        }
+
+        CoRealConvCached<ValArraySpec<OperandSize>> co_conv(n_samples);
+
+        RealFft<ValArraySpec<OperandSize>> real_fft(n_samples);
+        std::vector<double> signal(n_samples);
+        std::vector<double> impulse(n_samples);
+        std::vector<double> conv_out(n_samples);
+        std::vector<double> conv_ref(n_samples);
+
+        auto rng = RandomGenerator();
+        for (std::size_t i = 0; i < n_samples; i++)
+        {
+            signal[i] = rng.gen();
+            impulse[i] = rng.gen();
+        }
+
+        std::vector<double> cached_real(real_fft.spectra_len() + 1);
+        std::vector<double> cached_imag(real_fft.spectra_len() + 1);
+        real_fft.fft(cached_real.data(), cached_imag.data(), impulse.data());
+        cached_imag[0] = cached_real[real_fft.spectra_len()];
+
+        const std::size_t total_steps = co_conv.total_steps();
+        std::uniform_int_distribution<std::size_t> chunk_dist(1, std::max<std::size_t>(std::size_t(1), total_steps));
+
+        while (!co_conv.finished())
+        {
+            const std::size_t remaining = co_conv.steps_remaining();
+            const std::size_t request = std::min(remaining, chunk_dist(chunk_rng));
+            const std::size_t processed = co_conv.process(
+                conv_out.data(),
+                signal.data(),
+                cached_real.data(),
+                cached_imag.data(),
+                request == 0 ? 1 : request);
+
+            if (processed == 0)
+            {
+                throw std::runtime_error("CoRealConv cached mode stalled during process");
+            }
+        }
+
+        for (std::size_t i = 0; i < n_samples; i++)
+        {
+            double acc = 0.0;
+            for (std::size_t j = 0; j < n_samples; j++)
+            {
+                const std::size_t k = (i + n_samples - j) % n_samples;
+                acc += signal[j] * impulse[k];
+            }
+            conv_ref[i] = acc;
+        }
+
+        double signal_power_ = 0.0;
+        double noise_power_ = 0.0;
+
+        for (std::size_t i = 0; i < n_samples; i++)
+        {
+            const double ref = conv_ref[i];
+            signal_power_ += ref * ref;
+            const double diff = ref - conv_out[i];
+            noise_power_ += diff * diff;
+        }
+
+        const double snr = 10 * std::log10(signal_power_ / (noise_power_ + 1e-100) + 1e-100);
+
+        if (snr < 200)
+        {
+            cout << "check_co_real_conv_cached_fft OperandSize: " << OperandSize
                  << " N_samples: " << n_samples
                  << " snr: " << snr << endl;
             cout << "------------------------------------------- " << endl;
@@ -1312,21 +1476,29 @@ int main()
     // check_fft_double2sse();
     // check_fft_double4avx();
 
-    // check_real_fft<1>();
-    // check_real_fft<2>();
-    // check_real_fft<4>();
+    check_real_fft<1>();
+    check_real_fft<2>();
+    check_real_fft<4>();
 
-    // check_real_ifft<1>();
-    // check_real_ifft<2>();
-    // check_real_ifft<4>();
+    check_real_ifft<1>();
+    check_real_ifft<2>();
+    check_real_ifft<4>();
 
-    // check_real_conv<1>();
-    // check_real_conv<2>();
-    // check_real_conv<4>();
+    check_real_conv<1>();
+    check_real_conv<2>();
+    check_real_conv<4>();
 
-    // check_co_real_conv<1>();
-    // check_co_real_conv<2>();
-    // check_co_real_conv<4>();
+    check_real_conv_cached_fft<1>();
+    check_real_conv_cached_fft<2>();
+    check_real_conv_cached_fft<4>();
+
+    check_co_real_conv<1>();
+    check_co_real_conv<2>();
+    check_co_real_conv<4>();
+
+    check_co_real_conv_cached_fft<1>();
+    check_co_real_conv_cached_fft<2>();
+    check_co_real_conv_cached_fft<4>();
 
     check_streaming_real_conv<1>();
     check_streaming_real_conv<2>();

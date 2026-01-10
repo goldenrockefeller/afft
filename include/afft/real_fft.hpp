@@ -105,6 +105,15 @@ namespace afft
             execute_conv_plan(signal_out, signal_a, signal_b);
         }
 
+        void conv_with_cached_fft(
+            sample *signal_out,
+            const sample *signal,
+            const sample *cached_spectra_real,
+            const sample *cached_spectra_imag) const
+        {
+            execute_conv_plan_with_cached_fft(signal_out, signal, cached_spectra_real, cached_spectra_imag);
+        }
+
     private:
         enum ForwardIds : std::size_t
         {
@@ -215,6 +224,22 @@ namespace afft
                 ConvolutionIds::conv_out_offset,
                 ConvolutionIds::conv_in_a,
                 ConvolutionIds::conv_in_b,
+                ConvolutionIds::conv_spectra_a_real,
+                ConvolutionIds::conv_spectra_a_imag,
+                ConvolutionIds::conv_spectra_b_real,
+                ConvolutionIds::conv_spectra_b_imag,
+                ConvolutionIds::conv_buf_a_real,
+                ConvolutionIds::conv_buf_a_imag,
+                ConvolutionIds::conv_buf_b_real,
+                ConvolutionIds::conv_buf_b_imag);
+
+            conv_plan_cached_fft_ = plan::real_conv_plan_with_cached_spectra<sample>(
+                signal_len_,
+                n_samples_per_operand_,
+                Spec::min_partition_len,
+                ConvolutionIds::conv_out,
+                ConvolutionIds::conv_out_offset,
+                ConvolutionIds::conv_in_a,
                 ConvolutionIds::conv_spectra_a_real,
                 ConvolutionIds::conv_spectra_a_imag,
                 ConvolutionIds::conv_spectra_b_real,
@@ -356,6 +381,61 @@ namespace afft
                 log_n_samples_per_operand_);
         }
 
+        void execute_conv_plan_with_cached_fft(
+            sample *signal_out,
+            const sample *signal,
+            const sample *cached_spectra_real,
+            const sample *cached_spectra_imag) const
+        {
+            if (signal_len_ == 2)
+            {
+                const sample s0 = signal[0];
+                const sample s1 = signal[1];
+                const sample impulse0 = sample(0.5) * (cached_spectra_real[0] + cached_spectra_imag[0]);
+                const sample impulse1 = sample(0.5) * (cached_spectra_real[0] - cached_spectra_imag[0]);
+
+                signal_out[0] = s0 * impulse0 + s1 * impulse1;
+                signal_out[1] = s0 * impulse1 + s1 * impulse0;
+                return;
+            }
+
+            sample *data[ConvolutionIds::conv_buf_b_imag + 1];
+
+            data[ConvolutionIds::conv_out] = signal_out;
+            data[ConvolutionIds::conv_out_offset] = signal_out + spectra_len_;
+            data[ConvolutionIds::conv_in_a] = const_cast<sample *>(signal);
+            data[ConvolutionIds::conv_in_b] = nullptr;
+
+            data[ConvolutionIds::conv_spectra_a_real] = conv_spectra_a_real_.data();
+            data[ConvolutionIds::conv_spectra_a_imag] = conv_spectra_a_imag_.data();
+            data[ConvolutionIds::conv_spectra_b_real] = const_cast<sample *>(cached_spectra_real);
+            data[ConvolutionIds::conv_spectra_b_imag] = const_cast<sample *>(cached_spectra_imag);
+
+            sample *buf_a_real = buf_a_.data();
+            sample *buf_a_imag = buf_a_real + spectra_len_;
+            sample *buf_b_real = buf_b_.data();
+            sample *buf_b_imag = buf_b_real + spectra_len_;
+
+            data[ConvolutionIds::conv_buf_a_real] = buf_a_real;
+            data[ConvolutionIds::conv_buf_a_imag] = buf_a_imag;
+            data[ConvolutionIds::conv_buf_b_real] = buf_b_real;
+            data[ConvolutionIds::conv_buf_b_imag] = buf_b_imag;
+
+            const auto *twiddles = twiddles_.empty() ? nullptr : twiddles_.data();
+            const auto *out_perm = out_permute_.empty() ? nullptr : out_permute_.data();
+            const auto *in_perm = in_permute_.empty() ? nullptr : in_permute_.data();
+
+            execute::eval<Spec>(
+                data,
+                conv_plan_cached_fft_,
+                rotor_real_.data(),
+                rotor_imag_.data(),
+                twiddles,
+                out_perm,
+                in_perm,
+                log_n_samples_per_operand_);
+        }
+
     private:
         std::size_t signal_len_;
         std::size_t spectra_len_;
@@ -369,6 +449,7 @@ namespace afft
         std::vector<Stage<sample>> ifft_plan_;
         std::vector<Stage<sample>> ifft_scaled_plan_;
         std::vector<Stage<sample>> conv_plan_;
+        std::vector<Stage<sample>> conv_plan_cached_fft_;
 
         std::vector<sample, Allocator> twiddles_;
         std::vector<std::size_t> in_permute_;

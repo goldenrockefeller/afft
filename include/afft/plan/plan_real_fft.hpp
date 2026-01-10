@@ -350,6 +350,88 @@ namespace afft
 
             return plan;
         }
+
+        template <typename Sample>
+        std::vector<Stage<Sample>> real_conv_plan_with_cached_spectra(
+            std::size_t signal_len,
+            std::size_t n_samples_per_operand,
+            std::size_t min_partition_len,
+            std::size_t out_id,
+            std::size_t out_offset_id,
+            std::size_t in_signal_id,
+            std::size_t spectra_signal_real_id,
+            std::size_t spectra_signal_imag_id,
+            std::size_t cached_spectra_real_id,
+            std::size_t cached_spectra_imag_id,
+            std::size_t buf_a_real_id,
+            std::size_t buf_a_imag_id,
+            std::size_t buf_b_real_id,
+            std::size_t buf_b_imag_id
+        )
+        {
+            std::vector<Stage<Sample>> plan;
+            if (signal_len == 0)
+            {
+                return plan;
+            }
+
+            const std::size_t spectra_len = (signal_len >> 1);
+
+            auto forward_plan = real_fft_plan<Sample>(
+                signal_len,
+                n_samples_per_operand,
+                min_partition_len,
+                true);
+
+            set_data_ids_for_real_fft<Sample>(
+                forward_plan,
+                in_signal_id,
+                spectra_signal_real_id,
+                spectra_signal_imag_id,
+                buf_a_real_id,
+                buf_a_imag_id,
+                buf_b_real_id,
+                buf_b_imag_id);
+
+            plan.insert(plan.end(), forward_plan.begin(), forward_plan.end());
+
+            Stage<Sample> multiply_stage{};
+            multiply_stage.type = StageType::complex_multiply;
+            auto &multiply_params = multiply_stage.params.complex_multiply;
+            multiply_params.id_start = 0;
+            multiply_params.id_end = spectra_len;
+            multiply_params.using_hermitian_packed_form = true;
+            multiply_params.out_real_id = spectra_signal_real_id;
+            multiply_params.out_imag_id = spectra_signal_imag_id;
+            multiply_params.in_real_a_id = spectra_signal_real_id;
+            multiply_params.in_imag_a_id = spectra_signal_imag_id;
+            multiply_params.in_real_b_id = cached_spectra_real_id;
+            multiply_params.in_imag_b_id = cached_spectra_imag_id;
+            plan.push_back(multiply_stage);
+
+            auto inverse_plan = inv_real_fft_plan<Sample>(
+                signal_len,
+                n_samples_per_operand,
+                min_partition_len,
+                true);
+
+            plan::replace_init_stages_with_rescale(inverse_plan, Sample(2.) / Sample(signal_len));
+
+            set_data_ids_for_real_ifft<Sample>(
+                inverse_plan,
+                out_id,
+                out_offset_id,
+                spectra_signal_real_id,
+                spectra_signal_imag_id,
+                buf_a_real_id,
+                buf_a_imag_id,
+                buf_b_real_id,
+                buf_b_imag_id);
+
+            plan.insert(plan.end(), inverse_plan.begin(), inverse_plan.end());
+
+            return plan;
+        }
     }
 }
 
