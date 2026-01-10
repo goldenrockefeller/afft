@@ -92,15 +92,22 @@ namespace afft
             std::size_t padded_len;
             RealFft<Spec, Allocator> fft;
             sample_vector impulse;
+            sample_vector cached_spectra_real;
+            sample_vector cached_spectra_imag;
 
             HeadPartition(std::size_t head_len_value, const sample *impulse_src, std::size_t impulse_len)
                 : head_len(head_len_value),
                   padded_len(head_len_value * 2),
                   fft(padded_len),
-                  impulse(padded_len, sample(0))
+                  impulse(padded_len, sample(0)),
+                  cached_spectra_real(fft.spectra_len() + 1, sample(0)),
+                  cached_spectra_imag(fft.spectra_len() + 1, sample(0))
             {
                 const std::size_t copy_len = std::min(head_len, impulse_len);
                 std::copy_n(impulse_src, copy_len, impulse.begin());
+
+                fft.fft(cached_spectra_real.data(), cached_spectra_imag.data(), impulse.data());
+                cached_spectra_imag[0] = cached_spectra_real[fft.spectra_len()];
             }
         };
 
@@ -204,7 +211,11 @@ namespace afft
             HeadPartition &partition = partition_for_len(padded_len);
             std::fill(head_input_buffer_.begin(), head_input_buffer_.begin() + padded_len, sample(0));
             std::copy_n(subslice, slice_len, head_input_buffer_.begin());
-            partition.fft.conv(head_conv_buffer_.data(), head_input_buffer_.data(), partition.impulse.data());
+            partition.fft.conv_with_cached_fft(
+                head_conv_buffer_.data(),
+                head_input_buffer_.data(),
+                partition.cached_spectra_real.data(),
+                partition.cached_spectra_imag.data());
             streaming_detail::circular_add(
                 output_buffer_.data(),
                 output_buffer_len_,

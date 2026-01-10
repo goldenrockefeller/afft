@@ -9,7 +9,8 @@
 #include <utility>
 #include <vector>
 
-#include "afft/co_real_conv.hpp"
+#include "afft/co_real_conv_cached.hpp"
+#include "afft/real_fft.hpp"
 
 namespace afft
 {
@@ -74,22 +75,23 @@ namespace afft
         using sample_vector = std::vector<sample, allocator_type>;
 
         explicit RealTailConv(sample_vector padded_tail_impulse)
-            : impulse_response_(std::move(padded_tail_impulse)),
-              tail_input_buffer_(checked_len(impulse_response_.size()), sample(0)),
-              tail_conv_buffer_(impulse_response_.size(), sample(0)),
-              tail_len_(impulse_response_.size() / 2),
-              tail_conv_len_(impulse_response_.size()),
-              co_real_conv_(tail_conv_len_),
-              staging_input_id_start_(0),
-              staging_output_id_start_(tail_len_),
-              commit_input_id_start_(0),
-              commit_output_id_start_(tail_len_),
-              staging_len_(0),
-              commit_len_(0),
-              commit_offset_(0),
-              committing_(false),
-              staging_(false),
-              commit_phase_(CommitPhase::Idle)
+                : impulse_response_(padded_tail_impulse),
+                    tail_input_buffer_(checked_len(impulse_response_.size()), sample(0)),
+                    tail_conv_buffer_(impulse_response_.size(), sample(0)),
+                    tail_len_(impulse_response_.size() / 2),
+                    tail_conv_len_(impulse_response_.size()),
+                    fft(tail_conv_len_),
+                    co_real_conv_(tail_conv_len_),
+                    staging_input_id_start_(0),
+                    staging_output_id_start_(tail_len_),
+                    commit_input_id_start_(0),
+                    commit_output_id_start_(tail_len_),
+                    staging_len_(0),
+                    commit_len_(0),
+                    commit_offset_(0),
+                    committing_(false),
+                    staging_(false),
+                    commit_phase_(CommitPhase::Idle)
         {
             if ((impulse_response_.size() & (impulse_response_.size() - 1)) != 0)
             {
@@ -99,6 +101,13 @@ namespace afft
             {
                 throw std::invalid_argument("Tail impulse response must be at least length 2");
             }
+
+            const std::size_t spectra_len = tail_conv_len_ >> 1;
+            cached_spectra_real_.assign(spectra_len + 1, sample(0));
+            cached_spectra_imag_.assign(spectra_len + 1, sample(0));
+
+            fft.fft(cached_spectra_real_.data(), cached_spectra_imag_.data(), impulse_response_.data());
+            cached_spectra_imag_[0] = cached_spectra_real_[spectra_len];
         }
 
         std::size_t tail_len() const
@@ -321,7 +330,8 @@ namespace afft
                         const std::size_t executed = co_real_conv_.process(
                             tail_conv_buffer_.data(),
                             tail_input_buffer_.data(),
-                            impulse_response_.data(),
+                            cached_spectra_real_.data(),
+                            cached_spectra_imag_.data(),
                             request_steps);
 
                         conv_steps_done_ += executed;
@@ -380,7 +390,10 @@ namespace afft
         sample_vector tail_conv_buffer_;
         std::size_t tail_len_;
         std::size_t tail_conv_len_;
-        CoRealConv<Spec, Allocator> co_real_conv_;
+        CoRealConvCached<Spec, Allocator> co_real_conv_;
+        RealFft<Spec, Allocator> fft;
+        sample_vector cached_spectra_real_;
+        sample_vector cached_spectra_imag_;
         std::size_t staging_input_id_start_;
         std::size_t staging_output_id_start_;
         std::size_t commit_input_id_start_;
