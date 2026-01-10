@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "afft/real_fft.hpp"
-#include "real_tail_conv.hpp"
+#include "afft/real_tail_conv.hpp"
 
 namespace afft
 {

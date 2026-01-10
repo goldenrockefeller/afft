@@ -16,7 +16,7 @@
 #include "afft/real_fft.hpp"
 #include "afft/co_real_conv.hpp"
 #include "afft/co_real_conv_cached.hpp"
-#include "streaming_real_conv.hpp"
+#include "afft/streaming_real_conv.hpp"
 #include "afft/spec/val_array_spec.hpp"
 #include "afft/spec/double4_avx2_spec.hpp"
 #include "afft/spec/double2_sse2_spec.hpp"
